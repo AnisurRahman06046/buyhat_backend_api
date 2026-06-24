@@ -1,5 +1,9 @@
 import { SetMetadata } from '@nestjs/common';
-import { IS_PUBLIC_KEY } from '../constants';
 
-/** Marks a route as publicly accessible (bypasses the global JwtAuthGuard). */
+export const IS_PUBLIC_KEY = 'isPublic';
+
+/**
+ * Marks a route (or whole controller) as publicly accessible, bypassing the
+ * globally-registered JwtAuthGuard. Usage: `@Public()`.
+ */
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);

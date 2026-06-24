@@ -1,54 +1,80 @@
 import {
   CallHandler,
   ExecutionContext,
-  HttpStatus,
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { Request, Response } from 'express';
-import { map, Observable } from 'rxjs';
-import { RESPONSE_MESSAGE_KEY } from '../constants';
-import { PaginatedResponseDto } from '../dto';
-import { ApiResponse } from '../interfaces';
-
-type RequestWithId = Request & { id?: string };
+import { Request } from 'express';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
+import {
+  ApiSuccessResponse,
+  PaginationMeta,
+} from '../interfaces/api-response.interface';
 
 /**
- * Wraps every successful controller return value in the standard
- * ApiResponse envelope. If the controller returns a PaginatedResponseDto,
- * its `meta` is lifted to the top level and `data` becomes the items array.
+ * A controller may return a plain payload, or an object shaped like
+ * `{ data, pagination }` to attach pagination metadata to the envelope.
+ */
+export interface Paginated<T> {
+  data: T;
+  pagination: PaginationMeta;
+}
+
+function isPaginated<T>(value: unknown): value is Paginated<T> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'data' in value &&
+    'pagination' in value
+  );
+}
+
+/**
+ * Wraps every successful response in the uniform success envelope:
+ *   { success: true, data, meta }
+ * Pagination metadata, when present, is merged into `meta`.
  */
 @Injectable()
-export class ResponseInterceptor<T> implements NestInterceptor<T, ApiResponse<unknown>> {
-  constructor(private readonly reflector: Reflector) {}
+export class ResponseInterceptor<T> implements NestInterceptor<
+  T,
+  ApiSuccessResponse<T>
+> {
+  intercept(
+    context: ExecutionContext,
+    next: CallHandler<T>,
+  ): Observable<ApiSuccessResponse<T>> {
+    const request = context.switchToHttp().getRequest<Request>();
 
-  intercept(context: ExecutionContext, next: CallHandler<T>): Observable<ApiResponse<unknown>> {
-    const ctx = context.switchToHttp();
-    const request = ctx.getRequest<RequestWithId>();
-    const response = ctx.getResponse<Response>();
-
-    const message =
-      this.reflector.getAllAndOverride<string>(RESPONSE_MESSAGE_KEY, [
-        context.getHandler(),
-        context.getClass(),
-      ]) ?? 'Success';
+    // Terminus owns the health-check response shape ({ status, info, details }).
+    // Wrapping it in our { success, data } envelope breaks tools that parse it,
+    // so health endpoints pass through untouched.
+    if (request.url.startsWith('/health')) {
+      return next.handle() as Observable<ApiSuccessResponse<T>>;
+    }
 
     return next.handle().pipe(
-      map((payload): ApiResponse<unknown> => {
-        const base = {
-          success: true as const,
-          statusCode: response.statusCode ?? HttpStatus.OK,
-          message,
-          timestamp: new Date().toISOString(),
-          path: request.url,
-          requestId: request.id,
-        };
-
-        if (payload instanceof PaginatedResponseDto) {
-          return { ...base, data: payload.items, meta: payload.meta };
+      map((payload): ApiSuccessResponse<T> => {
+        if (isPaginated<T>(payload)) {
+          return {
+            success: true,
+            data: payload.data,
+            meta: {
+              timestamp: new Date().toISOString(),
+              path: request.url,
+              pagination: payload.pagination,
+            },
+          };
         }
-        return { ...base, data: payload ?? null };
+
+        return {
+          success: true,
+          data: payload,
+          meta: {
+            timestamp: new Date().toISOString(),
+            path: request.url,
+          },
+        };
       }),
     );
   }

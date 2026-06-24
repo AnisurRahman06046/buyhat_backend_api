@@ -8,22 +8,31 @@ import {
 import { Observable, throwError, TimeoutError } from 'rxjs';
 import { catchError, timeout } from 'rxjs/operators';
 
+const DEFAULT_TIMEOUT_MS = 15_000;
+
 /**
- * Fails a request with 408 if the handler exceeds the configured budget.
- * Protects worker threads from being held by slow downstream calls.
+ * Fails any request that exceeds the timeout, protecting the event loop and
+ * downstream resources from hanging handlers. Returns a 408 in the uniform
+ * error envelope (via the exception filters).
  */
 @Injectable()
 export class TimeoutInterceptor implements NestInterceptor {
-  private readonly timeoutMs = parseInt(process.env.REQUEST_TIMEOUT_MS ?? '15000', 10);
+  constructor(private readonly timeoutMs: number = DEFAULT_TIMEOUT_MS) {}
 
-  intercept(_context: ExecutionContext, next: CallHandler): Observable<unknown> {
+  intercept(
+    _context: ExecutionContext,
+    next: CallHandler,
+  ): Observable<unknown> {
     return next.handle().pipe(
       timeout(this.timeoutMs),
-      catchError((err) =>
-        err instanceof TimeoutError
-          ? throwError(() => new RequestTimeoutException())
-          : throwError(() => err),
-      ),
+      catchError((err: unknown) => {
+        if (err instanceof TimeoutError) {
+          return throwError(
+            () => new RequestTimeoutException('Request timed out'),
+          );
+        }
+        return throwError(() => err);
+      }),
     );
   }
 }

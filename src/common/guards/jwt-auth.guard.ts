@@ -1,11 +1,15 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
-import { IS_PUBLIC_KEY } from '../constants';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 /**
- * Global authentication guard. Validates the JWT access token via the
- * 'jwt' Passport strategy, unless the route is marked @Public().
+ * Global authentication guard.
+ *
+ * Wraps passport's 'jwt' strategy but first checks for the @Public() marker on
+ * the handler or controller. Public routes skip auth entirely; everything else
+ * requires a valid access token. Registered globally via APP_GUARD so the app
+ * is "secure by default".
  */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -18,9 +22,11 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       context.getHandler(),
       context.getClass(),
     ]);
+
     if (isPublic) {
       return true;
     }
+
     return super.canActivate(context);
   }
 }

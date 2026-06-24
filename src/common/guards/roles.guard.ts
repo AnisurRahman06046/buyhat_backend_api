@@ -5,14 +5,14 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from '../constants';
-import { Role } from '../enums';
-import { AuthenticatedRequest } from '../interfaces';
+import { ROLES_KEY } from '../decorators/roles.decorator';
+import { Role } from '../enums/role.enum';
+import { AuthenticatedRequest } from '../interfaces/authenticated-request.interface';
 
 /**
- * RBAC guard. Allows the request if the user holds at least one of the
- * roles declared via @Roles(). Routes without @Roles() are unrestricted
- * (authentication is still enforced separately by JwtAuthGuard).
+ * Role-based access control guard. Reads roles declared via @Roles() and grants
+ * access if the authenticated user holds ANY of them (OR semantics). Routes
+ * without @Roles() are allowed (authentication is still enforced by JwtAuthGuard).
  */
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -29,11 +29,14 @@ export class RolesGuard implements CanActivate {
     }
 
     const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    const hasRole = user?.roles?.some((role) => requiredRoles.includes(role));
 
+    const hasRole = user?.roles?.some((role) => requiredRoles.includes(role));
     if (!hasRole) {
-      throw new ForbiddenException('Insufficient permissions for this resource');
+      throw new ForbiddenException(
+        'Insufficient permissions for this resource',
+      );
     }
+
     return true;
   }
 }

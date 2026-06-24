@@ -1,9 +1,19 @@
 import { Request } from 'express';
-import { AuthenticatedUser } from './authenticated-user.interface';
+import { Role } from '../enums/role.enum';
 
 /**
- * Express request after JWT validation. The correlation `id` is provided
- * globally by pino-http's type augmentation, so it is not re-declared here.
+ * The user object attached to `request.user` by the JWT strategy /
+ * authentication guard. Keep this minimal and serializable.
+ */
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+  roles: Role[];
+}
+
+/**
+ * Express request enriched with the authenticated user.
+ * Controllers receive this (via @CurrentUser) only on guarded routes.
  */
 export interface AuthenticatedRequest extends Request {
   user: AuthenticatedUser;

@@ -1,34 +1,42 @@
+/**
+ * Uniform API envelope contracts.
+ *
+ * Success: { success: true, data, meta }
+ * Error:   { success: false, error: { code, message, details } }
+ */
+export interface ApiResponseMeta {
+  timestamp: string;
+  path?: string;
+  // Pagination metadata is merged in when relevant.
+  pagination?: PaginationMeta;
+  [key: string]: unknown;
+}
+
 export interface PaginationMeta {
   page: number;
   limit: number;
-  totalItems: number;
+  total: number;
   totalPages: number;
   hasNextPage: boolean;
   hasPreviousPage: boolean;
 }
 
-/** Standard success envelope returned by ResponseInterceptor. */
-export interface ApiResponse<T> {
+export interface ApiSuccessResponse<T> {
   success: true;
-  statusCode: number;
-  message: string;
   data: T;
-  meta?: PaginationMeta;
-  timestamp: string;
-  path: string;
-  requestId?: string;
+  meta: ApiResponseMeta;
 }
 
-/** Standard error envelope returned by the exception filters. */
+export interface ApiErrorBody {
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
 export interface ApiErrorResponse {
   success: false;
-  statusCode: number;
-  message: string;
-  error: {
-    code: string;
-    details?: unknown;
-  };
-  timestamp: string;
-  path: string;
-  requestId?: string;
+  error: ApiErrorBody;
+  meta: ApiResponseMeta;
 }
+
+export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse;

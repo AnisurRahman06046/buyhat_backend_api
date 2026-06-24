@@ -1,94 +1,108 @@
+import { randomUUID } from 'crypto';
+import type { IncomingMessage, ServerResponse } from 'http';
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigType } from '@nestjs/config';
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { configurations, envValidationSchema, throttleConfig } from './config';
-import {
-  AllExceptionsFilter,
-  JwtAuthGuard,
-  ResponseInterceptor,
-  RolesGuard,
-  TimeoutInterceptor,
-  TypeOrmExceptionFilter,
-} from './common';
-import { DatabaseModule } from './infra/database';
-import { HealthModule } from './infra/health';
-import { LoggerModule } from './infra/logger';
-import { QueueModule } from './infra/queue';
-import { RedisModule } from './infra/redis';
-import { StorageModule } from './infra/storage';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
+import { LoggerModule } from 'nestjs-pino';
+import type Redis from 'ioredis';
+import configuration from './config/configuration';
+import { validate } from './config/env.validation';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
+import { DatabaseModule } from './database/database.module';
+import { RedisModule } from './shared/redis/redis.module';
+import { REDIS_CLIENT } from './shared/redis/redis.service';
+import { QueueModule } from './shared/queue/queue.module';
+import { NotificationsModule } from './shared/notifications';
+import { AuditModule } from './modules/audit';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
-import { CatalogModule } from './modules/catalog/catalog.module';
-import { CartModule } from './modules/cart/cart.module';
-import { OrdersModule } from './modules/orders/orders.module';
-import { InventoryModule } from './modules/inventory/inventory.module';
-import { PaymentsModule } from './modules/payments/payments.module';
-import { PromotionsModule } from './modules/promotions/promotions.module';
-import { CmsModule } from './modules/cms/cms.module';
-import { NotificationsModule } from './modules/notifications/notifications.module';
-import { ReviewsModule } from './modules/reviews/reviews.module';
-import { ReportingModule } from './modules/reporting/reporting.module';
+import { HealthModule } from './modules/health/health.module';
 
 /**
- * Composition root. Wires the global infrastructure (config, logging, db,
- * cache, queues, storage, rate limiting, health) and registers the
- * cross-cutting guards/filters/interceptors that every request flows through.
+ * Composition root of the modular monolith.
  *
- * Domain modules under src/modules/* are imported here as they come online.
+ * Layout:
+ *   1. Platform config (env validation, typed configuration).
+ *   2. Cross-cutting infrastructure (logging, rate limiting, DB, Redis, queues).
+ *   3. Feature modules — each one self-contained; add new ones here only.
+ *   4. Global guards via APP_GUARD (DI-aware). Execution order = listed order:
+ *      throttle -> authenticate -> authorize.
+ *
+ * Adding a feature module is a one-line change in the FEATURE MODULES block.
  */
 @Module({
   imports: [
+    // 1. Configuration — validated at boot, available everywhere.
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      load: configurations,
-      validationSchema: envValidationSchema,
-      validationOptions: { abortEarly: false },
+      load: [configuration],
+      validate,
     }),
-    LoggerModule,
+
+    // 2. Infrastructure
+    LoggerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const isProduction = config.get<string>('app.env') === 'production';
+        return {
+          pinoHttp: {
+            level: isProduction ? 'info' : 'debug',
+            transport: isProduction
+              ? undefined
+              : { target: 'pino-pretty', options: { singleLine: true } },
+            // Never log secrets.
+            redact: ['req.headers.authorization', 'req.headers.cookie'],
+            // Correlation id: honour an inbound X-Request-Id (from an upstream
+            // proxy / gateway) or mint one, and echo it back so every log line
+            // and the client share a trace id.
+            genReqId: (req: IncomingMessage, res: ServerResponse): string => {
+              const header = req.headers['x-request-id'];
+              const id =
+                (Array.isArray(header) ? header[0] : header) ?? randomUUID();
+              res.setHeader('x-request-id', id);
+              return id;
+            },
+          },
+        };
+      },
+    }),
+
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService, REDIS_CLIENT],
+      useFactory: (config: ConfigService, redis: Redis) => ({
+        throttlers: [
+          {
+            // config stores TTL in seconds; throttler v6 expects milliseconds.
+            ttl: config.get<number>('throttle.ttl', 60) * 1_000,
+            limit: config.get<number>('throttle.limit', 100),
+          },
+        ],
+        // Back the throttler with Redis so limits are shared across replicas
+        // (in-memory storage is per-instance and ineffective behind >1 pod).
+        storage: new ThrottlerStorageRedisService(redis),
+      }),
+    }),
+
     DatabaseModule,
     RedisModule,
     QueueModule,
-    StorageModule,
-    ThrottlerModule.forRootAsync({
-      inject: [throttleConfig.KEY],
-      useFactory: (config: ConfigType<typeof throttleConfig>) => ({
-        throttlers: [{ ttl: config.ttl, limit: config.limit }],
-      }),
-    }),
-    HealthModule,
+    NotificationsModule,
 
-    // Domain modules (skeletons for now; each owns its own Postgres schema).
+    // 3. FEATURE MODULES — register new modules here.
+    AuditModule,
     AuthModule,
     UsersModule,
-    CatalogModule,
-    CartModule,
-    OrdersModule,
-    InventoryModule,
-    PaymentsModule,
-    PromotionsModule,
-    CmsModule,
-    NotificationsModule,
-    ReviewsModule,
-    ReportingModule,
+    HealthModule,
   ],
   providers: [
-    // Guards run in array order: rate-limit first, then authenticate, then
-    // authorize (RolesGuard reads the user JwtAuthGuard attaches).
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-    { provide: APP_GUARD, useClass: JwtAuthGuard },
-    { provide: APP_GUARD, useClass: RolesGuard },
-
-    // Filters: Nest runs global APP_FILTERs in reverse registration order, so
-    // the specific TypeOrm filter (registered last) runs before the catch-all.
-    { provide: APP_FILTER, useClass: AllExceptionsFilter },
-    { provide: APP_FILTER, useClass: TypeOrmExceptionFilter },
-
-    // Interceptors: ResponseInterceptor is outermost (formats the envelope),
-    // TimeoutInterceptor sits closer to the handler to bound its runtime.
-    { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
-    { provide: APP_INTERCEPTOR, useClass: TimeoutInterceptor },
+    // 4. Global guards (DI-aware). Order = execution order.
+    { provide: APP_GUARD, useClass: ThrottlerGuard }, // rate limit first
+    { provide: APP_GUARD, useClass: JwtAuthGuard }, // then authenticate
+    { provide: APP_GUARD, useClass: RolesGuard }, // then authorize (RBAC)
   ],
 })
 export class AppModule {}

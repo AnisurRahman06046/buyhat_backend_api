@@ -1,6 +1,10 @@
 import { SetMetadata } from '@nestjs/common';
-import { ROLES_KEY } from '../constants';
-import { Role } from '../enums';
+import { Role } from '../enums/role.enum';
 
-/** Restricts a route to the given roles (enforced by RolesGuard). */
+export const ROLES_KEY = 'roles';
+
+/**
+ * Restricts a route to the given roles. Enforced by RolesGuard.
+ * Usage: `@Roles(Role.ADMIN)`.
+ */
 export const Roles = (...roles: Role[]) => SetMetadata(ROLES_KEY, roles);

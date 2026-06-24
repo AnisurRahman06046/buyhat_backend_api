@@ -1,57 +1,147 @@
-import * as Joi from 'joi';
+import { plainToInstance, Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+  MinLength,
+  validateSync,
+} from 'class-validator';
 
 /**
- * Validates raw process environment on boot. Fails fast with a clear
- * message if a required variable is missing or malformed.
+ * Supported runtime environments.
  */
-export const envValidationSchema = Joi.object({
-  // App
-  NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
-  PORT: Joi.number().default(3000),
-  APP_NAME: Joi.string().default('BuyHat'),
-  API_PREFIX: Joi.string().default('api'),
-  API_VERSION: Joi.string().default('1'),
-  CORS_ORIGINS: Joi.string().default('*'),
-  SWAGGER_ENABLED: Joi.boolean().truthy('true').falsy('false').default(true),
-  LOG_LEVEL: Joi.string()
-    .valid('trace', 'debug', 'info', 'warn', 'error', 'fatal')
-    .default('info'),
+export enum Environment {
+  Development = 'development',
+  Production = 'production',
+  Test = 'test',
+}
 
-  // Database
-  DATABASE_URL: Joi.string().uri({ scheme: ['postgresql', 'postgres'] }).optional(),
-  DB_HOST: Joi.string().default('localhost'),
-  DB_PORT: Joi.number().default(5432),
-  DB_USERNAME: Joi.string().default('buyhat'),
-  DB_PASSWORD: Joi.string().allow('').default('buyhat_password'),
-  DB_NAME: Joi.string().default('buyhat'),
-  DB_SSL: Joi.boolean().truthy('true').falsy('false').default(false),
-  DB_SYNCHRONIZE: Joi.boolean().truthy('true').falsy('false').default(false),
-  DB_MIGRATIONS_RUN: Joi.boolean().truthy('true').falsy('false').default(false),
-  DB_LOGGING: Joi.boolean().truthy('true').falsy('false').default(false),
+/**
+ * Strongly-typed schema for all environment variables the app expects.
+ * `@nestjs/config` calls `validate()` at startup; if any required var is
+ * missing or malformed the process fails fast with a descriptive error
+ * instead of crashing later at runtime.
+ */
+export class EnvironmentVariables {
+  @IsEnum(Environment)
+  @IsOptional()
+  NODE_ENV: Environment = Environment.Development;
 
-  // Redis
-  REDIS_HOST: Joi.string().default('localhost'),
-  REDIS_PORT: Joi.number().default(6379),
-  REDIS_PASSWORD: Joi.string().allow('').optional(),
-  REDIS_DB: Joi.number().default(0),
-  REDIS_KEY_PREFIX: Joi.string().default('buyhat:'),
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(65535)
+  @IsOptional()
+  PORT = 3000;
 
-  // JWT
-  JWT_ACCESS_SECRET: Joi.string().min(16).required(),
-  JWT_ACCESS_TTL: Joi.string().default('900s'),
-  JWT_REFRESH_SECRET: Joi.string().min(16).required(),
-  JWT_REFRESH_TTL: Joi.string().default('7d'),
+  // ---- Database ----
+  @IsString()
+  @IsNotEmpty()
+  DB_HOST: string;
 
-  // Throttler
-  THROTTLE_TTL: Joi.number().default(60000),
-  THROTTLE_LIMIT: Joi.number().default(120),
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(65535)
+  DB_PORT: number;
 
-  // Storage
-  STORAGE_ENDPOINT: Joi.string().default('http://localhost:9000'),
-  STORAGE_REGION: Joi.string().default('us-east-1'),
-  STORAGE_BUCKET: Joi.string().default('buyhat-media'),
-  STORAGE_ACCESS_KEY: Joi.string().default('minioadmin'),
-  STORAGE_SECRET_KEY: Joi.string().default('minioadmin'),
-  STORAGE_FORCE_PATH_STYLE: Joi.boolean().truthy('true').falsy('false').default(true),
-  STORAGE_PUBLIC_URL: Joi.string().default('http://localhost:9000/buyhat-media'),
-});
+  @IsString()
+  @IsNotEmpty()
+  DB_USERNAME: string;
+
+  @IsString()
+  @IsNotEmpty()
+  DB_PASSWORD: string;
+
+  @IsString()
+  @IsNotEmpty()
+  DB_NAME: string;
+
+  // ---- Redis ----
+  @IsString()
+  @IsNotEmpty()
+  REDIS_HOST: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(65535)
+  REDIS_PORT: number;
+
+  @IsString()
+  @IsOptional()
+  REDIS_PASSWORD?: string;
+
+  // ---- JWT ----
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(32, {
+    message:
+      'JWT_SECRET must be at least 32 characters (use `openssl rand -base64 48`)',
+  })
+  JWT_SECRET: string;
+
+  @IsString()
+  @IsOptional()
+  JWT_EXPIRES_IN = '15m';
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(32, {
+    message:
+      'JWT_REFRESH_SECRET must be at least 32 characters (use `openssl rand -base64 48`)',
+  })
+  JWT_REFRESH_SECRET: string;
+
+  @IsString()
+  @IsOptional()
+  JWT_REFRESH_EXPIRES_IN = '7d';
+
+  // ---- Throttling / rate limiting ----
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  THROTTLE_TTL = 60;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  THROTTLE_LIMIT = 100;
+
+  // ---- CORS ----
+  @IsString()
+  @IsOptional()
+  CORS_ORIGIN = '*';
+}
+
+/**
+ * Validation function wired into ConfigModule (`validate` option).
+ * Converts raw env strings into the typed class and runs class-validator.
+ */
+export function validate(
+  config: Record<string, unknown>,
+): EnvironmentVariables {
+  const validatedConfig = plainToInstance(EnvironmentVariables, config, {
+    enableImplicitConversion: true,
+  });
+
+  const errors = validateSync(validatedConfig, {
+    skipMissingProperties: false,
+  });
+
+  if (errors.length > 0) {
+    throw new Error(
+      `Environment validation failed:\n${errors
+        .map((e) => `  - ${Object.values(e.constraints ?? {}).join(', ')}`)
+        .join('\n')}`,
+    );
+  }
+
+  return validatedConfig;
+}

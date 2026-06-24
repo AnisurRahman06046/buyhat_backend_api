@@ -1,17 +1,19 @@
-import { PaginationMeta } from '../interfaces';
+import { PaginationMeta } from '../interfaces/api-response.interface';
 
-/** Builds pagination metadata from a total count and the current page/limit. */
+/**
+ * Builds a PaginationMeta object from the standard inputs. Use in services that
+ * return paginated lists so the meta shape stays consistent everywhere.
+ */
 export function buildPaginationMeta(
-  totalItems: number,
+  total: number,
   page: number,
   limit: number,
 ): PaginationMeta {
-  const safeLimit = Math.max(1, limit);
-  const totalPages = Math.max(1, Math.ceil(totalItems / safeLimit));
+  const totalPages = limit > 0 ? Math.ceil(total / limit) : 0;
   return {
     page,
-    limit: safeLimit,
-    totalItems,
+    limit,
+    total,
     totalPages,
     hasNextPage: page < totalPages,
     hasPreviousPage: page > 1,

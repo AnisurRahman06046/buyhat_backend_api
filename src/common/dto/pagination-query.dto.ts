@@ -1,22 +1,29 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
-export enum SortOrder {
-  ASC = 'ASC',
-  DESC = 'DESC',
-}
-
-/** Reusable pagination / sorting / search query params. */
+/**
+ * Reusable pagination query DTO. Extend it for resource-specific filters.
+ * `@Type(() => Number)` is required because query params arrive as strings.
+ */
 export class PaginationQueryDto {
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @ApiPropertyOptional({
+    minimum: 1,
+    default: 1,
+    description: 'Page number (1-based)',
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @IsOptional()
   page = 1;
 
-  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({
+    minimum: 1,
+    maximum: 100,
+    default: 20,
+    description: 'Items per page',
+  })
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -24,22 +31,7 @@ export class PaginationQueryDto {
   @IsOptional()
   limit = 20;
 
-  @ApiPropertyOptional({ description: 'Field name to sort by' })
-  @IsString()
-  @IsOptional()
-  sortBy?: string;
-
-  @ApiPropertyOptional({ enum: SortOrder, default: SortOrder.DESC })
-  @IsEnum(SortOrder)
-  @IsOptional()
-  sortOrder: SortOrder = SortOrder.DESC;
-
-  @ApiPropertyOptional({ description: 'Free-text search term' })
-  @IsString()
-  @IsOptional()
-  search?: string;
-
-  /** Offset for SQL queries. */
+  /** Offset derived from page/limit, convenient for repositories. */
   get skip(): number {
     return (this.page - 1) * this.limit;
   }

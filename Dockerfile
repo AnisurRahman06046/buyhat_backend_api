@@ -1,33 +1,43 @@
 # syntax=docker/dockerfile:1
 
-# ---- Base ----------------------------------------------------------------
-FROM node:20-slim AS base
-WORKDIR /app
-ENV NODE_ENV=production
+# ──────────────────────────────────────────────────────────────────────────
+# Multi-stage build → small, non-root production image.
+# ──────────────────────────────────────────────────────────────────────────
 
-# ---- Dependencies (all, for build) --------------------------------------
-FROM base AS deps
-COPY package*.json ./
+# 1) deps: install ALL deps (incl. dev) for building, cached on lockfile only.
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
 RUN npm ci
 
-# ---- Build ---------------------------------------------------------------
-FROM deps AS build
+# 2) build: compile TypeScript → dist
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build
 
-# ---- Production dependencies only ---------------------------------------
-FROM base AS prod-deps
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# 3) prod-deps: install ONLY production dependencies
+FROM node:22-alpine AS prod-deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
-# ---- Runner --------------------------------------------------------------
-FROM base AS runner
+# 4) runner: minimal runtime image
+FROM node:22-alpine AS runner
 ENV NODE_ENV=production
-# Non-root for safety
+WORKDIR /app
+
+# dumb-init for correct PID 1 signal handling (graceful shutdown).
+RUN apk add --no-cache dumb-init
+
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-COPY package*.json ./
+COPY package.json ./
+
+# Run as the built-in unprivileged `node` user.
 USER node
+
 EXPOSE 3000
-# Migrations can be run as a separate step/job:  npm run migration:run:prod
-CMD ["node", "dist/main"]
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "dist/main.js"]

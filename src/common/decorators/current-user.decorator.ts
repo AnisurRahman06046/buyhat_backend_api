@@ -1,10 +1,12 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
-import { AuthenticatedRequest, AuthenticatedUser } from '../interfaces';
+import {
+  AuthenticatedRequest,
+  AuthenticatedUser,
+} from '../interfaces/authenticated-request.interface';
 
 /**
- * Injects the authenticated user (or a single property of it).
- *   @CurrentUser() user: AuthenticatedUser
- *   @CurrentUser('id') userId: string
+ * Extracts the authenticated user (or a single property of it) from the request.
+ * Usage: `@CurrentUser() user: AuthenticatedUser` or `@CurrentUser('id') id: string`.
  */
 export const CurrentUser = createParamDecorator(
   (data: keyof AuthenticatedUser | undefined, ctx: ExecutionContext) => {

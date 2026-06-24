@@ -6,82 +6,97 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { HttpAdapterHost } from '@nestjs/core';
-import { Request } from 'express';
-import { BusinessException } from '../exceptions';
-import { ApiErrorResponse } from '../interfaces';
+import { Request, Response } from 'express';
+import { QueryFailedError } from 'typeorm';
+import { ApiErrorResponse } from '../interfaces/api-response.interface';
 
-type RequestWithId = Request & { id?: string };
+/** Postgres error code for a unique-constraint violation. */
+const PG_UNIQUE_VIOLATION = '23505';
+
+interface DriverError {
+  code?: string;
+  detail?: string;
+}
 
 /**
- * Catch-all filter. Normalises every thrown error into the standard
- * ApiErrorResponse envelope and logs 5xx with stack traces.
+ * The single global exception filter. Translates every error — framework
+ * HttpExceptions, validation failures, database driver errors, and unexpected
+ * programmer errors — into the uniform error envelope:
  *
- * NOTE: register this BEFORE more specific filters (e.g. TypeOrmExceptionFilter)
- * in the providers array, because Nest executes global APP_FILTERs in reverse
- * registration order (last registered runs first).
+ *   { success: false, error: { code, message, details }, meta }
+ *
+ * Having exactly one filter removes the ordering hazard of overlapping global
+ * filters (a catch-all `@Catch()` shadows a specific one) and guarantees
+ * validation `details` are never dropped.
  */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
 
-  constructor(private readonly httpAdapterHost: HttpAdapterHost) {}
+  constructor(private readonly isProduction = false) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
-    const { httpAdapter } = this.httpAdapterHost;
     const ctx = host.switchToHttp();
-    const request = ctx.getRequest<RequestWithId>();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
 
-    let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+    let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let code = 'INTERNAL_SERVER_ERROR';
     let details: unknown;
 
-    if (exception instanceof BusinessException) {
-      statusCode = exception.getStatus();
-      message = exception.message;
-      code = exception.code;
-      details = exception.details;
-    } else if (exception instanceof HttpException) {
-      statusCode = exception.getStatus();
-      const response = exception.getResponse();
-      if (typeof response === 'string') {
-        message = response;
-      } else if (response && typeof response === 'object') {
-        const r = response as Record<string, unknown>;
-        const rawMessage = r.message;
-        message = Array.isArray(rawMessage)
-          ? (rawMessage as string[]).join(', ')
-          : ((rawMessage as string) ?? exception.message);
-        details = Array.isArray(rawMessage) ? rawMessage : undefined;
+    if (exception instanceof HttpException) {
+      status = exception.getStatus();
+      code = HttpStatus[status] ?? 'HTTP_ERROR';
+      const res = exception.getResponse();
+
+      if (typeof res === 'string') {
+        message = res;
+      } else {
+        const body = res as Record<string, unknown>;
+        // class-validator returns `message` as a string[] of failures.
+        if (Array.isArray(body.message)) {
+          message = 'Validation failed';
+          details = body.message;
+        } else {
+          message = (body.message as string) ?? exception.message;
+        }
       }
-      code = this.codeFromStatus(statusCode);
+    } else if (exception instanceof QueryFailedError) {
+      const driverError = (
+        exception as unknown as { driverError?: DriverError }
+      ).driverError;
+      if (driverError?.code === PG_UNIQUE_VIOLATION) {
+        status = HttpStatus.CONFLICT;
+        code = 'CONFLICT';
+        message = 'Resource already exists';
+      } else {
+        // Never leak SQL internals to clients.
+        status = HttpStatus.BAD_REQUEST;
+        code = 'DATABASE_ERROR';
+        message = 'A database error occurred';
+      }
     } else if (exception instanceof Error) {
-      message = exception.message;
+      message = this.isProduction ? 'Internal server error' : exception.message;
     }
 
-    const path = httpAdapter.getRequestUrl(request) as string;
+    // Log everything that isn't a deliberate HttpException, with the stack.
+    if (!(exception instanceof HttpException)) {
+      this.logger.error(
+        `Unhandled exception on ${request.method} ${request.url}`,
+        exception instanceof Error ? exception.stack : String(exception),
+      );
+    }
+
     const body: ApiErrorResponse = {
       success: false,
-      statusCode,
-      message,
-      error: { code, details },
-      timestamp: new Date().toISOString(),
-      path,
-      requestId: request.id,
+      error: { code, message, details },
+      meta: {
+        timestamp: new Date().toISOString(),
+        path: request.url,
+      },
     };
 
-    const logLine = `${request.method} ${path} -> ${statusCode} ${code}: ${message}`;
-    if (statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
-      this.logger.error(logLine, exception instanceof Error ? exception.stack : undefined);
-    } else {
-      this.logger.warn(logLine);
-    }
-
-    httpAdapter.reply(ctx.getResponse(), body, statusCode);
-  }
-
-  private codeFromStatus(status: number): string {
-    return HttpStatus[status] ?? 'ERROR';
+    response.status(status).json(body);
   }
 }
