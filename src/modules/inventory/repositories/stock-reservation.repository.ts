@@ -12,4 +12,9 @@ export class StockReservationRepository extends BaseRepository<StockReservation>
   ) {
     super(repo);
   }
+
+  /** All reservations attached to an order (any status). */
+  findByOrder(orderId: string): Promise<StockReservation[]> {
+    return this.findMany({ where: { orderId } });
+  }
 }

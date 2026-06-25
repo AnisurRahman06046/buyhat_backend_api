@@ -23,6 +23,18 @@ import { ProfileRepository } from '../repositories/profile.repository';
 
 const TERMINAL_STATUSES = [AccountStatus.SUSPENDED, AccountStatus.DEACTIVATED];
 
+/** Address fields the orders module snapshots onto an order at checkout. */
+export interface AddressSnapshot {
+  recipientName: string;
+  phone: string;
+  line1: string;
+  line2: string | null;
+  city: string;
+  state: string | null;
+  postalCode: string | null;
+  country: string;
+}
+
 /**
  * Profile + address use-cases, and admin account management. Identity data
  * (email, status, roles) is read/written via `AccountService` (the `auth`
@@ -88,6 +100,28 @@ export class UsersService {
     const profile = await this.ensureProfile(userId);
     const addresses = await this.addressRepository.findByProfile(profile.id);
     return addresses.map((address) => AddressResponseDto.fromEntity(address));
+  }
+
+  /**
+   * Cross-module (orders): a snapshot of one of the user's saved addresses, to
+   * be copied immutably onto an order. 404 if the address isn't theirs.
+   */
+  async getAddressSnapshot(
+    userId: string,
+    addressId: string,
+  ): Promise<AddressSnapshot> {
+    const profile = await this.ensureProfile(userId);
+    const address = await this.requireAddress(addressId, profile.id);
+    return {
+      recipientName: address.recipientName,
+      phone: address.phone,
+      line1: address.line1,
+      line2: address.line2,
+      city: address.city,
+      state: address.state,
+      postalCode: address.postalCode,
+      country: address.country,
+    };
   }
 
   async createAddress(

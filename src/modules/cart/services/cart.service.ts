@@ -23,6 +23,21 @@ export interface CartIdentity {
   guestId?: string | null;
 }
 
+/** A cart line as orders needs it at checkout (re-prices via catalog itself). */
+export interface CheckoutCartLine {
+  variantId: string;
+  productId: string;
+  quantity: number;
+}
+
+/** Minimal active-cart view handed to the orders module for conversion. */
+export interface CheckoutCart {
+  id: string;
+  currency: string;
+  couponCode: string | null;
+  lines: CheckoutCartLine[];
+}
+
 @Injectable()
 export class CartService {
   private readonly maxQtyPerLine: number;
@@ -43,6 +58,35 @@ export class CartService {
     const cart = await this.resolveActiveCart(identity, false);
     if (!cart) return this.emptyResponse(identity.guestId ?? null);
     return this.buildResponse(cart);
+  }
+
+  /**
+   * Cross-module (orders): the user's ACTIVE cart as a minimal checkout view,
+   * or null. Orders converts this into an order — it never touches cart tables.
+   */
+  async getActiveCart(userId: string): Promise<CheckoutCart | null> {
+    const active = await this.cartRepository.findActiveByUser(userId);
+    if (!active) return null;
+    const cart = await this.cartRepository.findWithItems(active.id);
+    if (!cart) return null;
+    return {
+      id: cart.id,
+      currency: cart.currency,
+      couponCode: cart.couponCode,
+      lines: (cart.items ?? []).map((item) => ({
+        variantId: item.variantId,
+        productId: item.productId,
+        quantity: item.quantity,
+      })),
+    };
+  }
+
+  /** Cross-module (orders): mark a cart CONVERTED once its order is placed. */
+  async markConverted(cartId: string): Promise<void> {
+    const cart = await this.cartRepository.findById(cartId);
+    if (!cart || cart.status !== CartStatus.ACTIVE) return;
+    cart.status = CartStatus.CONVERTED;
+    await this.cartRepository.save(cart);
   }
 
   async addItem(

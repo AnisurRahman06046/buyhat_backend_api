@@ -23,6 +23,7 @@ import { UsersModule } from './modules/users/users.module';
 import { CatalogModule } from './modules/catalog';
 import { InventoryModule } from './modules/inventory';
 import { CartModule } from './modules/cart';
+import { OrdersModule } from './modules/orders';
 import { HealthModule } from './modules/health/health.module';
 
 /**
@@ -104,6 +105,7 @@ import { HealthModule } from './modules/health/health.module';
     CatalogModule,
     InventoryModule,
     CartModule,
+    OrdersModule,
     HealthModule,
   ],
   providers: [

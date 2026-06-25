@@ -4,4 +4,8 @@
  */
 export { CartModule } from './cart.module';
 export { CartService } from './services/cart.service';
-export type { CartIdentity } from './services/cart.service';
+export type {
+  CartIdentity,
+  CheckoutCart,
+  CheckoutCartLine,
+} from './services/cart.service';

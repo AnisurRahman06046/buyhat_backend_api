@@ -39,6 +39,7 @@ export interface VariantSaleInfo {
   variantId: string;
   productId: string;
   productName: string;
+  sku: string;
   unitPrice: number;
   currency: string;
   /** true when the variant is active and its product is published & not deleted. */
@@ -203,6 +204,7 @@ export class VariantService {
       variantId: variant.id,
       productId: variant.productId,
       productName: product?.name ?? '',
+      sku: variant.sku,
       unitPrice: variant.price,
       currency: product?.currency ?? 'BDT',
       sellable,

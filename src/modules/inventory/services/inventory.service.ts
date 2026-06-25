@@ -37,6 +37,21 @@ import {
 } from '../inventory.constants';
 import { StockItemRepository } from '../repositories/stock-item.repository';
 import { StockMovementRepository } from '../repositories/stock-movement.repository';
+import { StockReservationRepository } from '../repositories/stock-reservation.repository';
+
+/** A line to reserve as part of an all-or-nothing checkout reservation. */
+export interface ReserveLine {
+  variantId: string;
+  quantity: number;
+}
+
+/** Reserve several variants atomically for a cart or an order. */
+export interface ReserveManyInput {
+  items: ReserveLine[];
+  orderId?: string;
+  cartId?: string;
+  ttlMinutes?: number;
+}
 
 interface MovementInput {
   variantId: string;
@@ -57,6 +72,7 @@ export class InventoryService {
   constructor(
     private readonly stockItemRepository: StockItemRepository,
     private readonly movementRepository: StockMovementRepository,
+    private readonly reservationRepository: StockReservationRepository,
     private readonly dataSource: DataSource,
     @InjectQueue(QUEUE_NAMES.INVENTORY) private readonly queue: Queue,
     @Inject(NOTIFICATION_PROVIDER)
@@ -151,13 +167,34 @@ export class InventoryService {
     );
   }
 
+  /**
+   * Return previously-sold stock to inventory for an order (edge case #9). A
+   * RETURN movement with an ORDER reference ties the ledger row to the order.
+   */
+  returnToStock(
+    variantId: string,
+    quantity: number,
+    orderId: string,
+    actorId: string | null,
+  ): Promise<StockAvailabilityDto> {
+    return this.mutateOnHand(
+      variantId,
+      quantity,
+      StockMovementType.RETURN,
+      'order return',
+      actorId,
+      { type: 'ORDER', id: orderId },
+    );
+  }
+
   /** Apply a signed on-hand delta + write the ledger row, atomically. */
   private async mutateOnHand(
     variantId: string,
     delta: number,
     type: StockMovementType,
     reason: string | null,
-    actorId: string,
+    actorId: string | null,
+    reference?: { type: string; id: string } | null,
   ): Promise<StockAvailabilityDto> {
     let crossed = false;
     let snapshot!: StockItem;
@@ -184,6 +221,8 @@ export class InventoryService {
         type,
         quantity: delta,
         balanceAfter: newOnHand,
+        referenceType: reference?.type ?? null,
+        referenceId: reference?.id ?? null,
         reason,
         createdBy: actorId,
       });
@@ -299,10 +338,143 @@ export class InventoryService {
     return ReservationResponseDto.fromEntity(reservation);
   }
 
+  /**
+   * Reserve several variants **all-or-nothing** in one transaction (checkout).
+   * If any line cannot be satisfied the whole reservation rolls back, so a
+   * checkout never leaves partial holds (D25). Expiry jobs are scheduled after
+   * commit, one per reservation.
+   */
+  async reserveMany(
+    input: ReserveManyInput,
+    actorId: string | null,
+  ): Promise<ReservationResponseDto[]> {
+    if (input.items.length === 0) return [];
+    const ttlMs = input.ttlMinutes
+      ? input.ttlMinutes * 60_000
+      : this.reservationTtlMs;
+    const expiresAt = new Date(Date.now() + ttlMs);
+    const referenceType = input.orderId
+      ? 'ORDER'
+      : input.cartId
+        ? 'CART'
+        : null;
+    const referenceId = input.orderId ?? input.cartId ?? null;
+
+    const reservations = await this.dataSource.transaction(async (manager) => {
+      const created: StockReservation[] = [];
+      for (const line of input.items) {
+        const qty = line.quantity;
+        if (!Number.isInteger(qty) || qty <= 0) {
+          throw new BadRequestException(
+            `Invalid reserve quantity for variant ${line.variantId}`,
+          );
+        }
+        // Same atomic guard as reserve(), per line; a failure aborts the txn.
+        const result = await manager
+          .createQueryBuilder()
+          .update(StockItem)
+          .set({
+            quantityReserved: () => `quantity_reserved + ${qty}`,
+            version: () => 'version + 1',
+          })
+          .where(
+            `variant_id = :variantId AND quantity_on_hand - quantity_reserved >= ${qty}`,
+            { variantId: line.variantId },
+          )
+          .returning('*')
+          .execute();
+
+        const updated = result.raw as Array<{ quantity_on_hand: number }>;
+        if (updated.length === 0) {
+          if (
+            !(await this.stockItemRepository.existsForVariant(line.variantId))
+          ) {
+            throw new NotFoundException(
+              `No stock for variant ${line.variantId}`,
+            );
+          }
+          throw new ConflictException(
+            `Insufficient available stock for variant ${line.variantId}`,
+          );
+        }
+
+        const saved = await manager.save(
+          manager.create(StockReservation, {
+            variantId: line.variantId,
+            quantity: qty,
+            status: ReservationStatus.HELD,
+            cartId: input.cartId ?? null,
+            orderId: input.orderId ?? null,
+            expiresAt,
+          }),
+        );
+        await this.writeMovement(manager, {
+          variantId: line.variantId,
+          type: StockMovementType.RESERVE,
+          quantity: qty,
+          balanceAfter: updated[0].quantity_on_hand,
+          referenceType,
+          referenceId,
+          createdBy: actorId,
+        });
+        created.push(saved);
+      }
+      return created;
+    });
+
+    for (const reservation of reservations) {
+      await this.queue.add(
+        RESERVATION_EXPIRE_JOB,
+        { reservationId: reservation.id },
+        { delay: ttlMs, jobId: `expire-${reservation.id}` },
+      );
+    }
+    return reservations.map((r) => ReservationResponseDto.fromEntity(r));
+  }
+
+  /**
+   * Confirm all of an order's HELD reservations (reserved → sold). Idempotent
+   * if already confirmed. Throws if any reservation has expired or been
+   * released, so a payment cannot be confirmed against vanished stock.
+   */
+  async confirmReservationsForOrder(
+    orderId: string,
+    actorId: string | null,
+  ): Promise<void> {
+    const all = await this.reservationRepository.findByOrder(orderId);
+    const blocked = all.filter(
+      (r) =>
+        r.status === ReservationStatus.RELEASED ||
+        r.status === ReservationStatus.EXPIRED,
+    );
+    if (blocked.length > 0) {
+      throw new ConflictException(
+        'One or more reservations expired or were released; cannot confirm',
+      );
+    }
+    const held = all.filter((r) => r.status === ReservationStatus.HELD);
+    for (const reservation of held) {
+      await this.confirm(reservation.id, actorId);
+    }
+  }
+
+  /** Release all of an order's HELD reservations (idempotent). */
+  async releaseReservationsForOrder(
+    orderId: string,
+    actorId: string | null,
+  ): Promise<void> {
+    const held = (await this.reservationRepository.findByOrder(orderId)).filter(
+      (r) => r.status === ReservationStatus.HELD,
+    );
+    for (const reservation of held) {
+      await this.release(reservation.id, actorId);
+    }
+  }
+
   /** Confirm a held reservation → reserved becomes sold (on-hand decreases). */
   confirm(
     reservationId: string,
-    actorId: string,
+    actorId: string | null,
   ): Promise<ReservationResponseDto> {
     return this.transitionReservation(
       reservationId,
@@ -314,7 +486,7 @@ export class InventoryService {
   /** Manually release a held reservation back to available. */
   release(
     reservationId: string,
-    actorId: string,
+    actorId: string | null,
   ): Promise<ReservationResponseDto> {
     return this.transitionReservation(
       reservationId,
@@ -325,6 +497,13 @@ export class InventoryService {
 
   /** Expiry path (delayed job / sweeper): release a still-HELD reservation. */
   async expire(reservationId: string): Promise<void> {
+    // Best-effort cleanup: a hold that was already confirmed, released, or
+    // expired has nothing to expire. Pre-checking keeps the delayed expiry job
+    // (scheduled for every reservation at creation) from failing once an order
+    // is paid or cancelled. transitionReservation re-checks under lock, so a
+    // lost race simply retries harmlessly.
+    const reservation = await this.reservationRepository.findById(reservationId);
+    if (!reservation || reservation.status !== ReservationStatus.HELD) return;
     await this.transitionReservation(
       reservationId,
       ReservationStatus.EXPIRED,

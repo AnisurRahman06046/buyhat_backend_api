@@ -1,0 +1,8 @@
+/** Return lifecycle: REQUESTED → APPROVED → RECEIVED → REFUNDED; or REJECTED. */
+export enum ReturnStatus {
+  REQUESTED = 'REQUESTED',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  RECEIVED = 'RECEIVED',
+  REFUNDED = 'REFUNDED',
+}

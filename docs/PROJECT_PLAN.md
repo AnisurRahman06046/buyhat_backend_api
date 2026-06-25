@@ -445,7 +445,7 @@ an outbox event.
 | 2 | Catalog | ◧ core done (everything except media) — categories(tree)/brands/attributes(+options)/products/variants; dynamic **attribute inheritance** (category+ancestors) + **auto variant generation** (cartesian + `attribute_signature` idempotency) + publishing (DRAFT/ACTIVE/ARCHIVED). Migration applied; build+lint green; **12-check app-context integration test passed**. Remaining: **media** (local-disk↔S3 storage port), run unit tests, attr-facet filtering (→ Phase 12 search). |
 | 3 | Inventory | ◻ not started |
 | 4 | Cart | ◻ not started |
-| 5 | Orders & Checkout | ◻ not started |
+| 5 | Orders & Checkout | ◼ done — checkout from cart with price lock (#8) + atomic all-or-nothing reservation (#1), order lifecycle state machine + append-only history, cancel (release/return stock), staff status PATCH + `markPaid` seam (Payments=Phase 6), **full returns** with RETURN ledger movements (#9) + refund status. Login-required (D26), inline+saved address (D27), full returns (D28). Migration applied; build+lint+**36 unit tests** green; **18-check live end-to-end smoke passed** (reserve→pay→cancel→return ledger verified). Design: `docs/PHASE_5_ORDERS.md`. |
 | 6 | Payments | ◻ not started |
 | 7 | Promotions | ◻ not started |
 | 8 | CMS | ◻ not started |
