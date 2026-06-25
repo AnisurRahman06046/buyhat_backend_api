@@ -18,7 +18,13 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
     OrderStatus.PAID,
     OrderStatus.CANCELLED,
   ],
-  [OrderStatus.CONFIRMED]: [OrderStatus.PAID, OrderStatus.CANCELLED],
+  // CONFIRMED → PROCESSING lets a COD order (confirmed but unpaid; cash on
+  // delivery) enter fulfilment without passing through PAID.
+  [OrderStatus.CONFIRMED]: [
+    OrderStatus.PAID,
+    OrderStatus.PROCESSING,
+    OrderStatus.CANCELLED,
+  ],
   [OrderStatus.PAID]: [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
   [OrderStatus.PROCESSING]: [OrderStatus.PACKED, OrderStatus.CANCELLED],
   [OrderStatus.PACKED]: [OrderStatus.SHIPPED, OrderStatus.CANCELLED],

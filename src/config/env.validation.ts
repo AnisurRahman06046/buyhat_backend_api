@@ -194,6 +194,23 @@ export class EnvironmentVariables {
   @Min(1)
   @IsOptional()
   CART_MAX_QTY_PER_LINE = 99;
+
+  // ---- Payments ----
+  @IsString()
+  @IsOptional()
+  PAYMENTS_MOCK_SECRET = 'mock-secret';
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  PAYMENTS_RECONCILE_INTERVAL_MIN = 5;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  PAYMENTS_RECONCILE_AFTER_MIN = 10;
 }
 
 /**

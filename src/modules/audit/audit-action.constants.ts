@@ -10,6 +10,9 @@ export const AuditAction = {
   ORDER_CANCELLED: 'order.cancelled',
   ORDER_RETURN_REQUESTED: 'order.return_requested',
   ORDER_RETURNED: 'order.returned',
+  PAYMENT_INITIATED: 'payment.initiated',
+  PAYMENT_SUCCEEDED: 'payment.succeeded',
+  PAYMENT_REFUNDED: 'payment.refunded',
 } as const;
 
 export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction];

@@ -10,16 +10,28 @@ import {
 
 describe('order state machine', () => {
   it('allows the happy-path fulfilment chain', () => {
-    expect(canTransition(OrderStatus.PENDING, OrderStatus.CONFIRMED)).toBe(true);
+    expect(canTransition(OrderStatus.PENDING, OrderStatus.CONFIRMED)).toBe(
+      true,
+    );
     expect(canTransition(OrderStatus.CONFIRMED, OrderStatus.PAID)).toBe(true);
     expect(canTransition(OrderStatus.PAID, OrderStatus.PROCESSING)).toBe(true);
-    expect(canTransition(OrderStatus.PROCESSING, OrderStatus.PACKED)).toBe(true);
+    expect(canTransition(OrderStatus.PROCESSING, OrderStatus.PACKED)).toBe(
+      true,
+    );
     expect(canTransition(OrderStatus.PACKED, OrderStatus.SHIPPED)).toBe(true);
-    expect(canTransition(OrderStatus.SHIPPED, OrderStatus.DELIVERED)).toBe(true);
+    expect(canTransition(OrderStatus.SHIPPED, OrderStatus.DELIVERED)).toBe(
+      true,
+    );
   });
 
   it('permits direct PENDING → PAID (e.g. immediate payment)', () => {
     expect(canTransition(OrderStatus.PENDING, OrderStatus.PAID)).toBe(true);
+  });
+
+  it('permits CONFIRMED → PROCESSING for COD (confirmed but unpaid)', () => {
+    expect(canTransition(OrderStatus.CONFIRMED, OrderStatus.PROCESSING)).toBe(
+      true,
+    );
   });
 
   it('rejects illegal jumps and backwards moves', () => {
@@ -61,7 +73,9 @@ describe('order state machine', () => {
     expect(
       canTransition(OrderStatus.RETURN_REQUESTED, OrderStatus.DELIVERED),
     ).toBe(true);
-    expect(canTransition(OrderStatus.RETURNED, OrderStatus.REFUNDED)).toBe(true);
+    expect(canTransition(OrderStatus.RETURNED, OrderStatus.REFUNDED)).toBe(
+      true,
+    );
   });
 });
 

@@ -446,7 +446,7 @@ an outbox event.
 | 3 | Inventory | ◻ not started |
 | 4 | Cart | ◻ not started |
 | 5 | Orders & Checkout | ◼ done — checkout from cart with price lock (#8) + atomic all-or-nothing reservation (#1), order lifecycle state machine + append-only history, cancel (release/return stock), staff status PATCH + `markPaid` seam (Payments=Phase 6), **full returns** with RETURN ledger movements (#9) + refund status. Login-required (D26), inline+saved address (D27), full returns (D28). Migration applied; build+lint+**36 unit tests** green; **18-check live end-to-end smoke passed** (reserve→pay→cancel→return ledger verified). Design: `docs/PHASE_5_ORDERS.md`. |
-| 6 | Payments | ◻ not started |
+| 6 | Payments | ◼ done — gateway-agnostic `PAYMENT_GATEWAY` port + registry (COD + MOCK online; real BD gateways drop in later), idempotent signed webhooks (dedupe by gateway_txn_id), reconciliation sweep recovering dropped callbacks (#2), staff refunds reconciling order payment_status, double-pay guard. COD confirms+deducts at placement & collects on delivery (D34); online deducts on PAID via `OrderService.markPaid`. Migration applied; build+lint+**42 unit tests** green; **18-check live e2e smoke passed** (COD, online webhook, duplicate no-op, bad-sig reject, reconcile, refund). Design: `docs/PHASE_6_PAYMENTS.md`. |
 | 7 | Promotions | ◻ not started |
 | 8 | CMS | ◻ not started |
 | 9 | Reviews | ◻ not started |

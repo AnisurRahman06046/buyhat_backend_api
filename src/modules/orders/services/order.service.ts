@@ -363,6 +363,101 @@ export class OrderService {
     await this.persistTransition(order, toStatus, paymentStatus, actorId, note);
   }
 
+  // --- payments seams (payments → orders, one-way) ---------------------------
+
+  /** Payment view of an order: validates ownership + that it's still payable. */
+  async getPayableOrder(
+    orderId: string,
+    userId: string,
+  ): Promise<{
+    id: string;
+    userId: string | null;
+    grandTotal: number;
+    currency: string;
+    status: OrderStatus;
+    paymentStatus: PaymentStatus;
+  }> {
+    const order = await this.orderRepository.findById(orderId);
+    if (!order || order.userId !== userId) {
+      throw new NotFoundException(`Order ${orderId} not found`);
+    }
+    if (order.status !== OrderStatus.PENDING) {
+      throw new ConflictException(
+        `Order ${order.status} is not awaiting payment`,
+      );
+    }
+    if (order.paymentStatus !== PaymentStatus.UNPAID) {
+      throw new ConflictException('Order is already paid');
+    }
+    return {
+      id: order.id,
+      userId: order.userId,
+      grandTotal: order.grandTotal,
+      currency: order.currency,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+    };
+  }
+
+  /**
+   * COD confirmation (D34): deduct reserved stock and move PENDING→CONFIRMED,
+   * leaving paymentStatus UNPAID (cash is collected on delivery).
+   */
+  async confirmOrder(
+    orderId: string,
+    actorId: string | null,
+  ): Promise<OrderResponseDto> {
+    const order = await this.requireOrder(orderId);
+    if (order.status === OrderStatus.CONFIRMED) {
+      return this.getOrderResponse(order.id); // idempotent
+    }
+    if (!canTransition(order.status, OrderStatus.CONFIRMED)) {
+      throw new ConflictException(`Order ${order.status} cannot be confirmed`);
+    }
+    await this.inventoryService.confirmReservationsForOrder(order.id, actorId);
+    await this.persistTransition(
+      order,
+      OrderStatus.CONFIRMED,
+      null,
+      actorId,
+      'Order confirmed (COD)',
+    );
+    return this.getOrderResponse(order.id);
+  }
+
+  /**
+   * Record that money was captured for an order without changing its fulfilment
+   * status (e.g. COD collected on delivery). Idempotent.
+   */
+  async recordPaymentCaptured(
+    orderId: string,
+    actorId: string | null,
+  ): Promise<void> {
+    const order = await this.requireOrder(orderId);
+    if (order.paymentStatus === PaymentStatus.PAID) return;
+    order.paymentStatus = PaymentStatus.PAID;
+    order.updatedBy = actorId;
+    await this.orderRepository.save(order);
+  }
+
+  /**
+   * Reconcile an order's payment_status after a gateway refund (D36). Full
+   * refund → REFUNDED; partial → PARTIALLY_REFUNDED. Idempotent.
+   */
+  async applyRefund(
+    orderId: string,
+    refundedAmount: number,
+    actorId: string | null,
+  ): Promise<void> {
+    const order = await this.requireOrder(orderId);
+    order.paymentStatus =
+      refundedAmount >= order.grandTotal
+        ? PaymentStatus.REFUNDED
+        : PaymentStatus.PARTIALLY_REFUNDED;
+    order.updatedBy = actorId;
+    await this.orderRepository.save(order);
+  }
+
   // --- internals -------------------------------------------------------------
 
   /** Apply a transition's stock side-effects, then persist status + history. */
@@ -403,26 +498,35 @@ export class OrderService {
   }
 
   /**
-   * On cancel: if stock was already sold (order PAID) return it to inventory and
-   * flag a refund; otherwise release the held reservations.
+   * On cancel, key off the order STATUS (not paymentStatus) to decide stock
+   * handling: while PENDING the stock is only HELD → release the reservation;
+   * once committed (CONFIRMED for COD, PAID for online, or beyond) the stock was
+   * already deducted → return it to inventory. A refund is flagged only when
+   * money was actually captured (paymentStatus PAID); the gateway settlement is
+   * a staff-initiated `POST /payments/refund` (Phase 6, D36).
    */
   private async applyCancellationStock(
     order: Order,
     actorId: string | null,
   ): Promise<PaymentStatus | null> {
-    if (order.paymentStatus === PaymentStatus.PAID) {
-      for (const item of order.items ?? []) {
-        await this.inventoryService.returnToStock(
-          item.variantId,
-          item.quantity,
-          order.id,
-          actorId,
-        );
-      }
-      return PaymentStatus.REFUNDED; // monetary settlement handled in Phase 6
+    if (order.status === OrderStatus.PENDING) {
+      await this.inventoryService.releaseReservationsForOrder(
+        order.id,
+        actorId,
+      );
+      return null;
     }
-    await this.inventoryService.releaseReservationsForOrder(order.id, actorId);
-    return null;
+    for (const item of order.items ?? []) {
+      await this.inventoryService.returnToStock(
+        item.variantId,
+        item.quantity,
+        order.id,
+        actorId,
+      );
+    }
+    return order.paymentStatus === PaymentStatus.PAID
+      ? PaymentStatus.REFUNDED
+      : null;
   }
 
   private persistTransition(

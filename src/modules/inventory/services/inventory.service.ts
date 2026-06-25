@@ -502,7 +502,8 @@ export class InventoryService {
     // (scheduled for every reservation at creation) from failing once an order
     // is paid or cancelled. transitionReservation re-checks under lock, so a
     // lost race simply retries harmlessly.
-    const reservation = await this.reservationRepository.findById(reservationId);
+    const reservation =
+      await this.reservationRepository.findById(reservationId);
     if (!reservation || reservation.status !== ReservationStatus.HELD) return;
     await this.transitionReservation(
       reservationId,

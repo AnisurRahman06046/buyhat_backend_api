@@ -72,6 +72,15 @@ export interface CartConfig {
   maxQtyPerLine: number;
 }
 
+export interface PaymentsConfig {
+  /** HMAC secret the MOCK gateway signs/verifies webhooks with (D38). */
+  mockSecret: string;
+  /** How often the reconciliation sweep runs (minutes). */
+  reconcileIntervalMinutes: number;
+  /** Grace window before a stuck payment is reconciled (minutes). */
+  reconcileAfterMinutes: number;
+}
+
 export interface Configuration {
   app: AppConfig;
   db: DatabaseConfig;
@@ -82,6 +91,7 @@ export interface Configuration {
   catalog: CatalogConfig;
   inventory: InventoryConfig;
   cart: CartConfig;
+  payments: PaymentsConfig;
 }
 
 export default (): Configuration => ({
@@ -145,5 +155,16 @@ export default (): Configuration => ({
       10,
     ),
     maxQtyPerLine: parseInt(process.env.CART_MAX_QTY_PER_LINE ?? '99', 10),
+  },
+  payments: {
+    mockSecret: process.env.PAYMENTS_MOCK_SECRET ?? 'mock-secret',
+    reconcileIntervalMinutes: parseInt(
+      process.env.PAYMENTS_RECONCILE_INTERVAL_MIN ?? '5',
+      10,
+    ),
+    reconcileAfterMinutes: parseInt(
+      process.env.PAYMENTS_RECONCILE_AFTER_MIN ?? '10',
+      10,
+    ),
   },
 });
