@@ -16,9 +16,11 @@ import { RedisModule } from './shared/redis/redis.module';
 import { REDIS_CLIENT } from './shared/redis/redis.service';
 import { QueueModule } from './shared/queue/queue.module';
 import { NotificationsModule } from './shared/notifications';
+import { StorageModule } from './shared/storage';
 import { AuditModule } from './modules/audit';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { CatalogModule } from './modules/catalog';
 import { HealthModule } from './modules/health/health.module';
 
 /**
@@ -91,11 +93,13 @@ import { HealthModule } from './modules/health/health.module';
     RedisModule,
     QueueModule,
     NotificationsModule,
+    StorageModule,
 
     // 3. FEATURE MODULES — register new modules here.
     AuditModule,
     AuthModule,
     UsersModule,
+    CatalogModule,
     HealthModule,
   ],
   providers: [

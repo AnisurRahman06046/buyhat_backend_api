@@ -442,7 +442,7 @@ an outbox event.
 | --- | --- | --- |
 | 0 | Foundation hardening | ◼ done — 10 CODE_REVIEW blockers fixed; schema-per-module (D1=isolated) + base-class split + BaseRepository/BaseService + schema-bootstrap migration + admin seed + CI. *(S3/MinIO storage pulled into Phase 2, outbox relay into Phase 1 — built where first consumed.)* |
 | 1 | Auth / Users / Roles | ◼ done — auth/users split, Argon2id, roles[] JWT, register→verify→login→refresh(rotation+reuse)→logout, forgot/reset, outbox→profile, addresses + admin status/roles, **audit logging**. Migrations applied; **12 unit tests + 14-check live smoke test all green** (incl. outbox→profile, reuse-detection, RBAC). Also fixed env-validation int coercion (`@Type(() => Number)`). |
-| 2 | Catalog | ◻ not started |
+| 2 | Catalog | ◧ core done (everything except media) — categories(tree)/brands/attributes(+options)/products/variants; dynamic **attribute inheritance** (category+ancestors) + **auto variant generation** (cartesian + `attribute_signature` idempotency) + publishing (DRAFT/ACTIVE/ARCHIVED). Migration applied; build+lint green; **12-check app-context integration test passed**. Remaining: **media** (local-disk↔S3 storage port), run unit tests, attr-facet filtering (→ Phase 12 search). |
 | 3 | Inventory | ◻ not started |
 | 4 | Cart | ◻ not started |
 | 5 | Orders & Checkout | ◻ not started |

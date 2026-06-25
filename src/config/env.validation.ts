@@ -20,6 +20,12 @@ export enum Environment {
   Test = 'test',
 }
 
+/** Storage backend for product media (D7 / Phase 2). */
+export enum StorageDriver {
+  Local = 'local',
+  S3 = 's3',
+}
+
 /**
  * Strongly-typed schema for all environment variables the app expects.
  * `@nestjs/config` calls `validate()` at startup; if any required var is
@@ -118,6 +124,56 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   CORS_ORIGIN = '*';
+
+  // ---- Storage (product media) ----
+  @IsEnum(StorageDriver)
+  @IsOptional()
+  STORAGE_DRIVER: StorageDriver = StorageDriver.Local;
+
+  @IsString()
+  @IsOptional()
+  STORAGE_LOCAL_ROOT = './storage/uploads';
+
+  @IsString()
+  @IsOptional()
+  STORAGE_PUBLIC_URL = '/uploads';
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  STORAGE_MAX_FILE_MB = 10;
+
+  @IsString()
+  @IsOptional()
+  S3_ENDPOINT?: string;
+
+  @IsString()
+  @IsOptional()
+  S3_REGION = 'us-east-1';
+
+  @IsString()
+  @IsOptional()
+  S3_BUCKET?: string;
+
+  @IsString()
+  @IsOptional()
+  S3_ACCESS_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  S3_SECRET_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  S3_FORCE_PATH_STYLE = 'false';
+
+  // ---- Catalog ----
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  CATALOG_MAX_VARIANTS_PER_GENERATION = 200;
 }
 
 /**

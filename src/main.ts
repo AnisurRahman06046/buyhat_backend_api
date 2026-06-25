@@ -1,6 +1,8 @@
+import * as path from 'path';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import compression from 'compression';
@@ -17,7 +19,7 @@ import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor';
  * AppModule via APP_GUARD instead.
  */
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true, // hold logs until the pino logger is attached
   });
 
@@ -50,6 +52,19 @@ async function bootstrap(): Promise<void> {
     origin: allowAnyOrigin ? true : origins,
     credentials: true,
   });
+
+  // Serve locally-stored product media as static files when using the
+  // local-disk storage driver (the S3 driver serves objects from the bucket/CDN).
+  if (configService.get<string>('storage.driver') !== 's3') {
+    const root = path.resolve(
+      configService.get<string>('storage.local.root') ?? './storage/uploads',
+    );
+    const publicUrl =
+      configService.get<string>('storage.publicUrl') ?? '/uploads';
+    const prefix =
+      new URL(publicUrl, 'http://placeholder.invalid').pathname || '/uploads';
+    app.useStaticAssets(root, { prefix });
+  }
 
   // Close DB/Redis/queue connections cleanly on SIGTERM/SIGINT (k8s, Docker).
   app.enableShutdownHooks();
