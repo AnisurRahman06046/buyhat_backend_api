@@ -28,6 +28,11 @@ export class ProductVariantRepository extends BaseRepository<ProductVariant> {
     });
   }
 
+  /** Variant joined to its product — for cross-module sale/price lookups. */
+  findWithProduct(id: string): Promise<ProductVariant | null> {
+    return this.findOne({ where: { id }, relations: { product: true } });
+  }
+
   /** Existing combination signatures for a product (to skip duplicates on generation). */
   async existingSignatures(productId: string): Promise<Set<string>> {
     const rows = await this.repository.find({

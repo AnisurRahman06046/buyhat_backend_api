@@ -5,3 +5,4 @@
 export { CatalogModule } from './catalog.module';
 export { ProductService } from './services/product.service';
 export { VariantService } from './services/variant.service';
+export type { VariantSaleInfo } from './services/variant.service';

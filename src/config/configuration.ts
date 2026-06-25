@@ -65,6 +65,13 @@ export interface InventoryConfig {
   reservationTtlMinutes: number;
 }
 
+export interface CartConfig {
+  /** Inactivity before a cart is marked ABANDONED (D23). */
+  abandonedAfterMinutes: number;
+  /** Per-line quantity cap (D24). */
+  maxQtyPerLine: number;
+}
+
 export interface Configuration {
   app: AppConfig;
   db: DatabaseConfig;
@@ -74,6 +81,7 @@ export interface Configuration {
   storage: StorageConfig;
   catalog: CatalogConfig;
   inventory: InventoryConfig;
+  cart: CartConfig;
 }
 
 export default (): Configuration => ({
@@ -130,5 +138,12 @@ export default (): Configuration => ({
       process.env.INVENTORY_RESERVATION_TTL_MIN ?? '15',
       10,
     ),
+  },
+  cart: {
+    abandonedAfterMinutes: parseInt(
+      process.env.CART_ABANDONED_AFTER_MIN ?? '1440',
+      10,
+    ),
+    maxQtyPerLine: parseInt(process.env.CART_MAX_QTY_PER_LINE ?? '99', 10),
   },
 });

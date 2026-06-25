@@ -22,6 +22,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { CatalogModule } from './modules/catalog';
 import { InventoryModule } from './modules/inventory';
+import { CartModule } from './modules/cart';
 import { HealthModule } from './modules/health/health.module';
 
 /**
@@ -102,6 +103,7 @@ import { HealthModule } from './modules/health/health.module';
     UsersModule,
     CatalogModule,
     InventoryModule,
+    CartModule,
     HealthModule,
   ],
   providers: [

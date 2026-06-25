@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { EntityManager, DataSource } from 'typeorm';
 import { slugify } from '../../../common/utils/slug.util';
+import { ProductStatus } from '../enums/product-status.enum';
 import {
   GenerateVariantsDto,
   VariantOverrideDto,
@@ -31,6 +32,17 @@ export interface GenerateVariantsResult {
   created: number;
   skipped: number;
   variants: VariantResponseDto[];
+}
+
+/** Minimal variant info other modules (cart, orders) need to price a line. */
+export interface VariantSaleInfo {
+  variantId: string;
+  productId: string;
+  productName: string;
+  unitPrice: number;
+  currency: string;
+  /** true when the variant is active and its product is published & not deleted. */
+  sellable: boolean;
 }
 
 @Injectable()
@@ -174,6 +186,26 @@ export class VariantService {
       created,
       skipped,
       variants: createdVariants.map((v) => VariantResponseDto.fromEntity(v)),
+    };
+  }
+
+  /** Cross-module (cart/orders): price + sellability for a single variant. */
+  async getVariantSaleInfo(variantId: string): Promise<VariantSaleInfo | null> {
+    const variant = await this.variantRepository.findWithProduct(variantId);
+    if (!variant) return null;
+    const product = variant.product;
+    const sellable =
+      variant.isActive &&
+      !!product &&
+      product.status === ProductStatus.ACTIVE &&
+      !product.deletedAt;
+    return {
+      variantId: variant.id,
+      productId: variant.productId,
+      productName: product?.name ?? '',
+      unitPrice: variant.price,
+      currency: product?.currency ?? 'BDT',
+      sellable,
     };
   }
 

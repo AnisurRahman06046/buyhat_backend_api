@@ -181,6 +181,19 @@ export class EnvironmentVariables {
   @Min(1)
   @IsOptional()
   INVENTORY_RESERVATION_TTL_MIN = 15;
+
+  // ---- Cart ----
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  CART_ABANDONED_AFTER_MIN = 1440;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  CART_MAX_QTY_PER_LINE = 99;
 }
 
 /**
