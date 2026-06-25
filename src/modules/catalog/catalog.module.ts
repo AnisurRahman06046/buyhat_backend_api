@@ -1,5 +1,7 @@
+import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { QUEUE_NAMES } from '../../shared/queue/queue.constants';
 import { AttributeController } from './controllers/attribute.controller';
 import { BrandController } from './controllers/brand.controller';
 import { CategoryController } from './controllers/category.controller';
@@ -11,6 +13,7 @@ import { AttributeOption } from './entities/attribute-option.entity';
 import { Brand } from './entities/brand.entity';
 import { Category } from './entities/category.entity';
 import { CategoryAttribute } from './entities/category-attribute.entity';
+import { OutboxEvent } from './entities/outbox-event.entity';
 import { Product } from './entities/product.entity';
 import { ProductAttributeValue } from './entities/product-attribute-value.entity';
 import { ProductMedia } from './entities/product-media.entity';
@@ -29,6 +32,8 @@ import { AttributeService } from './services/attribute.service';
 import { BrandService } from './services/brand.service';
 import { CategoryService } from './services/category.service';
 import { MediaService } from './services/media.service';
+import { CatalogOutboxRelayService } from './services/outbox-relay.service';
+import { OutboxService } from './services/outbox.service';
 import { ProductService } from './services/product.service';
 import { VariantService } from './services/variant.service';
 
@@ -50,7 +55,9 @@ import { VariantService } from './services/variant.service';
       ProductVariant,
       VariantAttributeValue,
       ProductMedia,
+      OutboxEvent,
     ]),
+    BullModule.registerQueue({ name: QUEUE_NAMES.CATALOG_EVENTS }),
   ],
   controllers: [
     CategoryController,
@@ -76,6 +83,8 @@ import { VariantService } from './services/variant.service';
     ProductService,
     VariantService,
     MediaService,
+    OutboxService,
+    CatalogOutboxRelayService,
   ],
   exports: [ProductService, VariantService],
 })

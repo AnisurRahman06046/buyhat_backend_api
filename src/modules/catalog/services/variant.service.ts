@@ -19,6 +19,7 @@ import { ProductVariant } from '../entities/product-variant.entity';
 import { ProductRepository } from '../repositories/product.repository';
 import { ProductVariantRepository } from '../repositories/product-variant.repository';
 import { AttributeResolverService } from './attribute-resolver.service';
+import { OutboxService } from './outbox.service';
 
 const DEFAULT_MAX_VARIANTS_PER_GENERATION = 200;
 
@@ -41,6 +42,7 @@ export class VariantService {
     private readonly variantRepository: ProductVariantRepository,
     private readonly attributeResolver: AttributeResolverService,
     private readonly dataSource: DataSource,
+    private readonly outboxService: OutboxService,
     config: ConfigService,
   ) {
     this.maxVariantsPerGeneration =
@@ -154,6 +156,13 @@ export class VariantService {
         const full = await manager.findOne(ProductVariant, {
           where: { id: saved.id },
           relations: { attributeValues: true },
+        });
+        // Announce to inventory (Phase 3) so a stock_item (qty 0) is provisioned.
+        await this.outboxService.record(manager, {
+          aggregateType: 'product_variant',
+          aggregateId: saved.id,
+          eventType: 'variant.created',
+          payload: { variantId: saved.id, productId, sku: saved.sku },
         });
         createdVariants.push(full ?? saved);
         existing.add(signature);

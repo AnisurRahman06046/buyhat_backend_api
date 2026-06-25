@@ -60,6 +60,11 @@ export interface CatalogConfig {
   maxVariantsPerGeneration: number;
 }
 
+export interface InventoryConfig {
+  /** How long a stock reservation is held before expiry releases it (D18). */
+  reservationTtlMinutes: number;
+}
+
 export interface Configuration {
   app: AppConfig;
   db: DatabaseConfig;
@@ -68,6 +73,7 @@ export interface Configuration {
   throttle: ThrottleConfig;
   storage: StorageConfig;
   catalog: CatalogConfig;
+  inventory: InventoryConfig;
 }
 
 export default (): Configuration => ({
@@ -116,6 +122,12 @@ export default (): Configuration => ({
   catalog: {
     maxVariantsPerGeneration: parseInt(
       process.env.CATALOG_MAX_VARIANTS_PER_GENERATION ?? '200',
+      10,
+    ),
+  },
+  inventory: {
+    reservationTtlMinutes: parseInt(
+      process.env.INVENTORY_RESERVATION_TTL_MIN ?? '15',
       10,
     ),
   },

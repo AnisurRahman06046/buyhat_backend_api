@@ -21,6 +21,7 @@ import { AuditModule } from './modules/audit';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { CatalogModule } from './modules/catalog';
+import { InventoryModule } from './modules/inventory';
 import { HealthModule } from './modules/health/health.module';
 
 /**
@@ -100,6 +101,7 @@ import { HealthModule } from './modules/health/health.module';
     AuthModule,
     UsersModule,
     CatalogModule,
+    InventoryModule,
     HealthModule,
   ],
   providers: [

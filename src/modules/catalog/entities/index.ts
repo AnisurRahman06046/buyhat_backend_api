@@ -8,3 +8,4 @@ export * from './product-attribute-value.entity';
 export * from './product-variant.entity';
 export * from './variant-attribute-value.entity';
 export * from './product-media.entity';
+export * from './outbox-event.entity';

@@ -6,6 +6,10 @@ export const QUEUE_NAMES = {
   EXAMPLE: 'example',
   /** Cross-module domain events relayed from each module's transactional outbox. */
   DOMAIN_EVENTS: 'domain-events',
+  /** Catalog's domain events (e.g. `variant.created`), consumed by inventory. */
+  CATALOG_EVENTS: 'catalog-events',
+  /** Inventory background jobs (delayed reservation-expiry releases). */
+  INVENTORY: 'inventory',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

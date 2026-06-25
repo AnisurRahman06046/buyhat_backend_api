@@ -174,6 +174,13 @@ export class EnvironmentVariables {
   @Min(1)
   @IsOptional()
   CATALOG_MAX_VARIANTS_PER_GENERATION = 200;
+
+  // ---- Inventory ----
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  INVENTORY_RESERVATION_TTL_MIN = 15;
 }
 
 /**
