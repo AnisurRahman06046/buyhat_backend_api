@@ -73,6 +73,14 @@ export class ProductService {
     return ProductDetailResponseDto.fromEntity(product);
   }
 
+  /**
+   * Cross-module (promotions): map product ids → their category id, for coupon
+   * category-eligibility checks. Other modules never read catalog tables.
+   */
+  getProductCategories(productIds: string[]): Promise<Map<string, string>> {
+    return this.productRepository.categoryIdsByProduct(productIds);
+  }
+
   async publicDetail(slug: string): Promise<ProductDetailResponseDto> {
     const product = await this.productRepository.findActiveBySlug(slug);
     if (!product) {

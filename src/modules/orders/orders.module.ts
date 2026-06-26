@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CartModule } from '../cart';
 import { CatalogModule } from '../catalog';
 import { InventoryModule } from '../inventory';
+import { PromotionsModule } from '../promotions';
 import { UsersModule } from '../users';
 import { OrderController } from './controllers/order.controller';
 import { OrderReturnController } from './controllers/order-return.controller';
@@ -37,6 +38,7 @@ import { OrderService } from './services/order.service';
     CartModule,
     CatalogModule,
     InventoryModule,
+    PromotionsModule,
     UsersModule,
   ],
   controllers: [OrderController, OrderReturnController],

@@ -20,6 +20,8 @@ export class CartItemResponseDto {
     description: 'Snapshot price was refreshed to a new catalog price',
   })
   priceChanged: boolean;
+  @ApiProperty({ description: 'A flash-sale price is currently applied' })
+  onSale: boolean;
 }
 
 export class CartResponseDto {
@@ -31,6 +33,10 @@ export class CartResponseDto {
   @ApiProperty() itemCount: number;
   @ApiProperty({ description: 'Sum of line totals (pre-discount)' })
   subtotal: number;
+  @ApiProperty({ description: 'Coupon discount applied to the subtotal' })
+  discountTotal: number;
+  @ApiProperty({ description: 'subtotal − discountTotal' })
+  total: number;
   @ApiProperty({
     nullable: true,
     description: 'Set for guest carts so the client can persist it',

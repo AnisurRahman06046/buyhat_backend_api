@@ -15,6 +15,7 @@ import { AuditAction, AuditService } from '../../audit';
 import { CartService } from '../../cart';
 import { VariantService } from '../../catalog';
 import { InventoryService } from '../../inventory';
+import { PromotionsService } from '../../promotions';
 import { AddressSnapshot, UsersService } from '../../users';
 import { AddressInputDto } from '../dto/address-input.dto';
 import { CreateOrderDto } from '../dto/create-order.dto';
@@ -47,6 +48,8 @@ interface PricedLine {
   lineTotal: number;
 }
 
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
 @Injectable()
 export class OrderService {
   private readonly logger = new Logger(OrderService.name);
@@ -57,6 +60,7 @@ export class OrderService {
     private readonly variantService: VariantService,
     private readonly inventoryService: InventoryService,
     private readonly usersService: UsersService,
+    private readonly promotionsService: PromotionsService,
     private readonly auditService: AuditService,
     private readonly dataSource: DataSource,
   ) {}
@@ -85,6 +89,12 @@ export class OrderService {
       availability.map((a) => [a.variantId, a.available]),
     );
 
+    // Active flash-sale prices overlaid on the catalog price (lock the lower,
+    // edge #8) at the binding moment.
+    const flashPrices = await this.promotionsService.getActiveFlashPrices(
+      cart.lines.map((line) => line.variantId),
+    );
+
     // Revalidate + lock price for every line before touching the database.
     const pricedLines: PricedLine[] = [];
     let currency = cart.currency;
@@ -102,22 +112,44 @@ export class OrderService {
         );
       }
       currency = info.currency;
+      const flash = flashPrices.get(line.variantId);
+      const unitPrice =
+        flash != null && flash < info.unitPrice ? flash : info.unitPrice;
       pricedLines.push({
         variantId: info.variantId,
         productId: info.productId,
         sku: info.sku,
         productName: info.productName,
-        unitPrice: info.unitPrice,
+        unitPrice,
         quantity: line.quantity,
-        lineTotal: info.unitPrice * line.quantity,
+        lineTotal: round2(unitPrice * line.quantity),
       });
     }
 
-    const subtotal = pricedLines.reduce((sum, l) => sum + l.lineTotal, 0);
-    const discountTotal = 0; // coupons land in Phase 7
+    const subtotal = round2(
+      pricedLines.reduce((sum, l) => sum + l.lineTotal, 0),
+    );
+    // Apply the cart's coupon (validated again here; throws if no longer valid).
+    let discountTotal = 0;
+    const couponCode = cart.couponCode;
+    if (couponCode) {
+      const quote = await this.promotionsService.quoteCoupon({
+        code: couponCode,
+        userId: user.id,
+        ip,
+        lines: pricedLines.map((l) => ({
+          productId: l.productId,
+          lineTotal: l.lineTotal,
+        })),
+        subtotal,
+      });
+      discountTotal = quote.discountAmount;
+    }
     const shippingTotal = 0;
     const taxTotal = 0;
-    const grandTotal = subtotal - discountTotal + shippingTotal + taxTotal;
+    const grandTotal = round2(
+      subtotal - discountTotal + shippingTotal + taxTotal,
+    );
 
     const shipping = await this.resolveAddress(
       user.id,
@@ -422,6 +454,7 @@ export class OrderService {
       actorId,
       'Order confirmed (COD)',
     );
+    await this.recordPromotionRedemption(order);
     return this.getOrderResponse(order.id);
   }
 
@@ -494,7 +527,29 @@ export class OrderService {
       metadata: { toStatus },
     });
 
+    // Online payment commit: consume the coupon + advance flash sold counts (D40).
+    if (toStatus === OrderStatus.PAID) {
+      await this.recordPromotionRedemption(order);
+    }
+
     return this.getOrderResponse(order.id);
+  }
+
+  /** Record coupon redemption + flash sold counts when an order commits (best-effort). */
+  private async recordPromotionRedemption(order: Order): Promise<void> {
+    try {
+      await this.promotionsService.redeemForOrder({
+        orderId: order.id,
+        userId: order.userId,
+        code: order.couponCode,
+        discountAmount: order.discountTotal,
+        variantIds: (order.items ?? []).map((item) => item.variantId),
+      });
+    } catch (err) {
+      this.logger.error(
+        `Promotion redemption failed for order ${order.id}: ${String(err)}`,
+      );
+    }
   }
 
   /**

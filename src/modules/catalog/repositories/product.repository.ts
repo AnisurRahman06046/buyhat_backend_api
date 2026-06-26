@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { BaseRepository } from '../../../common/repositories/base.repository';
 import { ProductStatus } from '../enums/product-status.enum';
 import { Product } from '../entities/product.entity';
@@ -52,6 +52,18 @@ export class ProductRepository extends BaseRepository<Product> {
 
   countByCategory(categoryId: string): Promise<number> {
     return this.count({ where: { categoryId } });
+  }
+
+  /** Map each product id to its category id (for cross-module category lookups). */
+  async categoryIdsByProduct(
+    productIds: string[],
+  ): Promise<Map<string, string>> {
+    if (productIds.length === 0) return new Map();
+    const rows = await this.findMany({
+      where: { id: In(productIds) },
+      select: { id: true, categoryId: true },
+    });
+    return new Map(rows.map((p) => [p.id, p.categoryId]));
   }
 
   countByBrand(brandId: string): Promise<number> {

@@ -6,6 +6,7 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  Ip,
   Param,
   ParseUUIDPipe,
   Post,
@@ -20,6 +21,7 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Public } from '../../../common/decorators/public.decorator';
 import { OptionalJwtAuthGuard } from '../../../common/guards/optional-jwt-auth.guard';
 import { AddCartItemDto } from '../dto/add-cart-item.dto';
+import { ApplyCouponDto } from '../dto/apply-coupon.dto';
 import { CartResponseDto } from '../dto/cart-response.dto';
 import { MergeCartDto } from '../dto/merge-cart.dto';
 import { UpdateCartItemDto } from '../dto/update-cart-item.dto';
@@ -107,6 +109,39 @@ export class CartController {
     return this.withGuestHeader(
       res,
       await this.cartService.clear(this.identity(userId, guestId)),
+    );
+  }
+
+  @Post('coupon')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Apply (validate + store) a coupon on the cart' })
+  async applyCoupon(
+    @CurrentUser('id') userId: string | undefined,
+    @Headers('x-guest-id') guestId: string | undefined,
+    @Body() dto: ApplyCouponDto,
+    @Ip() ip: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.withGuestHeader(
+      res,
+      await this.cartService.applyCoupon(
+        this.identity(userId, guestId),
+        dto.code,
+        ip ?? null,
+      ),
+    );
+  }
+
+  @Delete('coupon')
+  @ApiOperation({ summary: 'Remove the coupon from the cart' })
+  async clearCoupon(
+    @CurrentUser('id') userId: string | undefined,
+    @Headers('x-guest-id') guestId: string | undefined,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.withGuestHeader(
+      res,
+      await this.cartService.clearCoupon(this.identity(userId, guestId)),
     );
   }
 

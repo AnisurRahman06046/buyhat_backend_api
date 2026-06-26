@@ -25,6 +25,7 @@ import { InventoryModule } from './modules/inventory';
 import { CartModule } from './modules/cart';
 import { OrdersModule } from './modules/orders';
 import { PaymentsModule } from './modules/payments';
+import { PromotionsModule } from './modules/promotions';
 import { HealthModule } from './modules/health/health.module';
 
 /**
@@ -108,6 +109,7 @@ import { HealthModule } from './modules/health/health.module';
     CartModule,
     OrdersModule,
     PaymentsModule,
+    PromotionsModule,
     HealthModule,
   ],
   providers: [

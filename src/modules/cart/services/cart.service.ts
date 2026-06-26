@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { VariantService } from '../../catalog';
 import { InventoryService } from '../../inventory';
+import { PromotionsService } from '../../promotions';
 import { AddCartItemDto } from '../dto/add-cart-item.dto';
 import { CartItemResponseDto, CartResponseDto } from '../dto/cart-response.dto';
 import { Cart } from '../entities/cart.entity';
@@ -38,6 +39,8 @@ export interface CheckoutCart {
   lines: CheckoutCartLine[];
 }
 
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
 @Injectable()
 export class CartService {
   private readonly maxQtyPerLine: number;
@@ -47,6 +50,7 @@ export class CartService {
     private readonly itemRepository: CartItemRepository,
     private readonly variantService: VariantService,
     private readonly inventoryService: InventoryService,
+    private readonly promotionsService: PromotionsService,
     private readonly dataSource: DataSource,
     config: ConfigService,
   ) {
@@ -160,6 +164,44 @@ export class CartService {
     if (!cart) return this.emptyResponse(identity.guestId ?? null);
     await this.dataSource.getRepository(CartItem).delete({ cartId: cart.id });
     await this.touch(cart);
+    return this.buildResponseById(cart.id, cart.guestId);
+  }
+
+  /**
+   * Validate a coupon against the current cart and, if valid, store the code.
+   * Validation (limits/eligibility) is delegated to PromotionsService (throws
+   * with a reason if invalid). This is the user-facing "validate" path.
+   */
+  async applyCoupon(
+    identity: CartIdentity,
+    code: string,
+    ip: string | null,
+  ): Promise<CartResponseDto> {
+    const cart = await this.requireActiveCart(identity);
+    const built = await this.buildResponse(cart);
+    if (built.items.length === 0) {
+      throw new UnprocessableEntityException('Your cart is empty');
+    }
+    await this.promotionsService.quoteCoupon({
+      code,
+      userId: identity.userId ?? null,
+      ip,
+      lines: built.items.map((l) => ({
+        productId: l.productId,
+        lineTotal: l.lineTotal,
+      })),
+      subtotal: built.subtotal,
+    });
+    cart.couponCode = code.trim().toUpperCase();
+    await this.cartRepository.save(cart);
+    return this.buildResponseById(cart.id, cart.guestId);
+  }
+
+  /** Remove any coupon from the cart. */
+  async clearCoupon(identity: CartIdentity): Promise<CartResponseDto> {
+    const cart = await this.requireActiveCart(identity);
+    cart.couponCode = null;
+    await this.cartRepository.save(cart);
     return this.buildResponseById(cart.id, cart.guestId);
   }
 
@@ -298,6 +340,9 @@ export class CartService {
     const availability =
       await this.inventoryService.getBulkAvailability(variantIds);
     const availMap = new Map(availability.map((a) => [a.variantId, a]));
+    // Flash-sale prices overlaid for display (D42); checkout re-derives them.
+    const flashPrices =
+      await this.promotionsService.getActiveFlashPrices(variantIds);
 
     const lines: CartItemResponseDto[] = [];
     let subtotal = 0;
@@ -310,8 +355,11 @@ export class CartService {
         priceChanged = true;
         await this.itemRepository.save(item);
       }
+      const flash = flashPrices.get(item.variantId);
+      const onSale = flash != null && flash < item.unitPriceSnapshot;
+      const unitPrice = onSale ? flash : item.unitPriceSnapshot;
       const available = availMap.get(item.variantId)?.available ?? 0;
-      const lineTotal = item.unitPriceSnapshot * item.quantity;
+      const lineTotal = round2(unitPrice * item.quantity);
       subtotal += lineTotal;
       const line = new CartItemResponseDto();
       line.id = item.id;
@@ -319,13 +367,34 @@ export class CartService {
       line.productId = item.productId;
       line.productName = item.productNameSnapshot;
       line.quantity = item.quantity;
-      line.unitPrice = item.unitPriceSnapshot;
+      line.unitPrice = unitPrice;
       line.lineTotal = lineTotal;
       line.available = available;
       line.inStock = available > 0;
       line.sellable = info?.sellable ?? false;
       line.priceChanged = priceChanged;
+      line.onSale = onSale;
       lines.push(line);
+    }
+    subtotal = round2(subtotal);
+
+    // Coupon preview (best-effort: a now-invalid stored coupon just shows no discount).
+    let discountTotal = 0;
+    if (cart.couponCode) {
+      try {
+        const quote = await this.promotionsService.quoteCoupon({
+          code: cart.couponCode,
+          userId: cart.userId,
+          lines: lines.map((l) => ({
+            productId: l.productId,
+            lineTotal: l.lineTotal,
+          })),
+          subtotal,
+        });
+        discountTotal = quote.discountAmount;
+      } catch {
+        discountTotal = 0;
+      }
     }
 
     const dto = new CartResponseDto();
@@ -336,6 +405,8 @@ export class CartService {
     dto.items = lines;
     dto.itemCount = lines.reduce((n, l) => n + l.quantity, 0);
     dto.subtotal = subtotal;
+    dto.discountTotal = discountTotal;
+    dto.total = round2(subtotal - discountTotal);
     dto.guestId = cart.guestId;
     return dto;
   }
@@ -349,6 +420,8 @@ export class CartService {
     dto.items = [];
     dto.itemCount = 0;
     dto.subtotal = 0;
+    dto.discountTotal = 0;
+    dto.total = 0;
     dto.guestId = guestId;
     return dto;
   }
