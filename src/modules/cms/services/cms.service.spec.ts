@@ -1,5 +1,6 @@
 import { BrandService, CategoryService, ProductService } from '../../catalog';
 import { PromotionsService } from '../../promotions';
+import { ReportingService } from '../../reporting';
 import { HomepageSection } from '../entities/homepage-section.entity';
 import { BannerPlacement } from '../enums/banner-placement.enum';
 import { HomepageSectionType } from '../enums/homepage-section-type.enum';
@@ -29,6 +30,7 @@ describe('CmsService (homepage hydration)', () => {
   let categoryService: jest.Mocked<CategoryService>;
   let brandService: jest.Mocked<BrandService>;
   let promotionsService: jest.Mocked<PromotionsService>;
+  let reportingService: jest.Mocked<ReportingService>;
   let service: CmsService;
 
   beforeEach(() => {
@@ -50,6 +52,9 @@ describe('CmsService (homepage hydration)', () => {
     promotionsService = {
       listActiveFlashSales: jest.fn().mockResolvedValue([{ id: 'fs1' }]),
     } as unknown as jest.Mocked<PromotionsService>;
+    reportingService = {
+      getBestSellers: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<ReportingService>;
 
     service = new CmsService(
       sectionRepository,
@@ -58,6 +63,7 @@ describe('CmsService (homepage hydration)', () => {
       categoryService,
       brandService,
       promotionsService,
+      reportingService,
     );
   });
 

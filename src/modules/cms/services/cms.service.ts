@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BrandService, CategoryService, ProductService } from '../../catalog';
 import { PromotionsService } from '../../promotions';
+import { ReportingService } from '../../reporting';
 import { RenderedHomepageSectionDto } from '../dto/homepage-section-response.dto';
 import { HomepageSection } from '../entities/homepage-section.entity';
 import { BannerPlacement } from '../enums/banner-placement.enum';
@@ -30,6 +31,7 @@ export class CmsService {
     private readonly categoryService: CategoryService,
     private readonly brandService: BrandService,
     private readonly promotionsService: PromotionsService,
+    private readonly reportingService: ReportingService,
   ) {}
 
   async getHomepage(): Promise<RenderedHomepageSectionDto[]> {
@@ -67,12 +69,22 @@ export class CmsService {
         );
         break;
       case HomepageSectionType.FEATURED_PRODUCTS:
-      case HomepageSectionType.BEST_SELLERS:
-        // Manually curated product ids; automatic best-sellers = Phase 11.
+        // Manually curated product ids.
         dto.products = await this.productService.getProductSummaries(
           idList(config, 'productIds'),
         );
         break;
+      case HomepageSectionType.BEST_SELLERS: {
+        // Auto best-sellers from reporting (D67); fall back to curated ids when
+        // there is no sales data yet. Catalog hydration drops inactive ids (D52).
+        const rawLimit = config?.['limit'];
+        const limit =
+          typeof rawLimit === 'number' && rawLimit > 0 ? rawLimit : undefined;
+        let ids = await this.reportingService.getBestSellers(limit);
+        if (ids.length === 0) ids = idList(config, 'productIds');
+        dto.products = await this.productService.getProductSummaries(ids);
+        break;
+      }
       case HomepageSectionType.BRANDS:
         dto.brands = await this.brandService.getBrandSummaries(
           idList(config, 'brandIds'),

@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { QUEUE_NAMES } from '../../shared/queue/queue.constants';
+import { ReportingModule } from '../reporting';
 import { AuthController } from './controllers/auth.controller';
 import { Account } from './entities/account.entity';
 import { AccountRole } from './entities/account-role.entity';
@@ -33,6 +34,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({}),
     BullModule.registerQueue({ name: QUEUE_NAMES.DOMAIN_EVENTS }),
+    ReportingModule,
   ],
   controllers: [AuthController],
   providers: [

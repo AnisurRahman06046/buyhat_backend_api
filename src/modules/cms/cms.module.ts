@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CatalogModule } from '../catalog';
 import { PromotionsModule } from '../promotions';
+import { ReportingModule } from '../reporting';
 import { BannerController } from './controllers/banner.controller';
 import { CmsMediaController } from './controllers/cms-media.controller';
 import { CmsPublicController } from './controllers/cms-public.controller';
@@ -39,6 +40,7 @@ import { PopupService } from './services/popup.service';
     ]),
     CatalogModule,
     PromotionsModule,
+    ReportingModule,
   ],
   controllers: [
     HomepageAdminController,

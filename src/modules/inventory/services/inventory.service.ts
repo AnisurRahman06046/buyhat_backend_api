@@ -21,6 +21,8 @@ import {
   ReservationResponseDto,
   StockAvailabilityDto,
   StockOperationDto,
+  StockReportDto,
+  StockReportLineDto,
 } from '../dto';
 import { StockItem } from '../entities/stock-item.entity';
 import { StockMovement } from '../entities/stock-movement.entity';
@@ -602,6 +604,27 @@ export class InventoryService {
     return {
       data: rows.map((m) => MovementResponseDto.fromEntity(m)),
       pagination: buildPaginationMeta(total, query.page, query.limit),
+    };
+  }
+
+  /**
+   * Current-state low/out-of-stock report. Owned here (queries inventory's own
+   * tables); the reporting module forwards to this rather than mirror high-churn
+   * stock levels (D66).
+   */
+  async getStockReport(limit = 100): Promise<StockReportDto> {
+    const [outOfStock, lowStock, outOfStockCount, lowStockCount] =
+      await Promise.all([
+        this.stockItemRepository.outOfStock(limit),
+        this.stockItemRepository.lowStock(limit),
+        this.stockItemRepository.countOutOfStock(),
+        this.stockItemRepository.countLowStock(),
+      ]);
+    return {
+      outOfStockCount,
+      lowStockCount,
+      outOfStock: outOfStock.map((i) => StockReportLineDto.fromEntity(i)),
+      lowStock: lowStock.map((i) => StockReportLineDto.fromEntity(i)),
     };
   }
 

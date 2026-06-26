@@ -17,6 +17,7 @@ import { VariantService } from '../../catalog';
 import { InventoryService } from '../../inventory';
 import { NotificationEvent, NotificationService } from '../../notifications';
 import { PromotionsService } from '../../promotions';
+import { ReportingService } from '../../reporting';
 import { AddressSnapshot, UsersService } from '../../users';
 import { AddressInputDto } from '../dto/address-input.dto';
 import { CreateOrderDto } from '../dto/create-order.dto';
@@ -63,6 +64,7 @@ export class OrderService {
     private readonly usersService: UsersService,
     private readonly promotionsService: PromotionsService,
     private readonly notifications: NotificationService,
+    private readonly reportingService: ReportingService,
     private readonly auditService: AuditService,
     private readonly dataSource: DataSource,
   ) {}
@@ -472,6 +474,7 @@ export class OrderService {
     await this.recordPromotionRedemption(order);
     // COD confirmation is the customer's "order placed/confirmed" milestone.
     void this.notifyOrderEvent(order, NotificationEvent.ORDER_PAID);
+    this.recordSale(order);
     return this.getOrderResponse(order.id);
   }
 
@@ -506,6 +509,7 @@ export class OrderService {
         : PaymentStatus.PARTIALLY_REFUNDED;
     order.updatedBy = actorId;
     await this.orderRepository.save(order);
+    void this.reportingService.recordOrderRefunded(orderId, refundedAmount);
   }
 
   // --- internals -------------------------------------------------------------
@@ -558,7 +562,41 @@ export class OrderService {
       void this.notifyOrderEvent(order, NotificationEvent.ORDER_DELIVERED);
     }
 
+    // Reporting read-model (Phase 11): count the sale once on commit; a paid
+    // order cancelled into REFUNDED flows into net-revenue.
+    if (toStatus === OrderStatus.PAID) {
+      this.recordSale(order);
+    } else if (
+      toStatus === OrderStatus.CANCELLED &&
+      paymentStatus === PaymentStatus.REFUNDED
+    ) {
+      void this.reportingService.recordOrderRefunded(
+        order.id,
+        order.grandTotal,
+      );
+    }
+
     return this.getOrderResponse(order.id);
+  }
+
+  /** Feed the reporting read-model when an order commits (best-effort, D69). */
+  private recordSale(order: Order): void {
+    void this.reportingService.recordOrderCommitted({
+      orderId: order.id,
+      userId: order.userId,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      currency: order.currency,
+      subtotal: order.subtotal,
+      discountAmount: order.discountTotal,
+      grandAmount: order.grandTotal,
+      placedAt: order.placedAt,
+      lines: (order.items ?? []).map((item) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        lineTotal: item.lineTotal,
+      })),
+    });
   }
 
   /**

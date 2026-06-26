@@ -9,6 +9,7 @@ import { DataSource } from 'typeorm';
 import { Role } from '../../../common/enums/role.enum';
 import { JwtPayload } from '../../../common/interfaces/jwt-payload.interface';
 import { NotificationEvent, NotificationService } from '../../notifications';
+import { ReportingService } from '../../reporting';
 import { AuditAction, AuditService } from '../../audit';
 import { AuthTokensDto } from '../dto/auth-tokens.dto';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
@@ -50,6 +51,7 @@ export class AuthService {
     private readonly outboxRelay: OutboxRelayService,
     @Inject(PASSWORD_HASHER) private readonly passwordHasher: PasswordHasher,
     private readonly notifications: NotificationService,
+    private readonly reporting: ReportingService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -108,6 +110,8 @@ export class AuthService {
       targetId: accountId,
       ip,
     });
+    // Seed the reporting customer fact (Phase 11, best-effort).
+    void this.reporting.recordCustomerRegistered(accountId, new Date());
 
     return this.issueAndStore(accountId, email, [Role.CUSTOMER]);
   }

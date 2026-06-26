@@ -4,3 +4,4 @@
  */
 export { InventoryModule } from './inventory.module';
 export { InventoryService } from './services/inventory.service';
+export { StockReportDto, StockReportLineDto } from './dto/stock-report.dto';
