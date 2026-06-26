@@ -3,8 +3,11 @@ import { LoggingNotificationProvider } from './logging-notification.provider';
 import { NOTIFICATION_PROVIDER } from './notification.types';
 
 /**
- * Global notification infrastructure. Binds the swappable {@link NOTIFICATION_PROVIDER}
- * token to the Phase 1 logging stub; inject the token anywhere to send messages.
+ * Global notification *adapter* infrastructure. Binds the swappable
+ * {@link NOTIFICATION_PROVIDER} token to the default logging stub — the
+ * low-level channel sender. The notifications feature module
+ * (`src/modules/notifications`) builds templates / preferences / retries /
+ * delivery-log on top of this port and is what callers inject.
  */
 @Global()
 @Module({
@@ -13,4 +16,4 @@ import { NOTIFICATION_PROVIDER } from './notification.types';
   ],
   exports: [NOTIFICATION_PROVIDER],
 })
-export class NotificationsModule {}
+export class NotificationProviderModule {}

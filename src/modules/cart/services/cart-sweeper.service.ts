@@ -5,6 +5,8 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { NotificationEvent, NotificationService } from '../../notifications';
+import { UsersService } from '../../users';
 import { CartStatus } from '../enums/cart-status.enum';
 import { CartRepository } from '../repositories/cart.repository';
 
@@ -27,6 +29,8 @@ export class CartSweeperService
 
   constructor(
     private readonly cartRepository: CartRepository,
+    private readonly usersService: UsersService,
+    private readonly notifications: NotificationService,
     config: ConfigService,
   ) {
     this.abandonedAfterMs =
@@ -60,6 +64,8 @@ export class CartSweeperService
         this.logger.log(
           `cart.abandoned ${cart.id} (user=${cart.userId ?? '-'} guest=${cart.guestId ?? '-'})`,
         );
+        // Marketing nudge for logged-in carts (guests have no contact / prefs).
+        if (cart.userId) void this.notifyAbandoned(cart.userId);
       }
       if (carts.length > 0) {
         this.logger.log(`Marked ${carts.length} cart(s) abandoned`);
@@ -68,6 +74,22 @@ export class CartSweeperService
       this.logger.error(`Cart sweep failed: ${String(err)}`);
     } finally {
       this.sweeping = false;
+    }
+  }
+
+  /** Best-effort abandoned-cart nudge (MARKETING; honours opt-out). Never throws. */
+  private async notifyAbandoned(userId: string): Promise<void> {
+    try {
+      const contact = await this.usersService.getContactInfo(userId);
+      await this.notifications.dispatch({
+        event: NotificationEvent.CART_ABANDONED,
+        userId,
+        to: { email: contact.email, phone: contact.phone },
+      });
+    } catch (err) {
+      this.logger.error(
+        `cart.abandoned notification failed for ${userId}: ${String(err)}`,
+      );
     }
   }
 }

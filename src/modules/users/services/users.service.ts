@@ -23,6 +23,12 @@ import { ProfileRepository } from '../repositories/profile.repository';
 
 const TERMINAL_STATUSES = [AccountStatus.SUSPENDED, AccountStatus.DEACTIVATED];
 
+/** Contact points resolved for a user, for the notifications dispatch seam (D64). */
+export interface ContactInfo {
+  email: string | null;
+  phone: string | null;
+}
+
 /** Address fields the orders module snapshots onto an order at checkout. */
 export interface AddressSnapshot {
   recipientName: string;
@@ -121,6 +127,22 @@ export class UsersService {
       state: address.state,
       postalCode: address.postalCode,
       country: address.country,
+    };
+  }
+
+  /**
+   * Cross-module (notifications): resolve a user's contact points so callers can
+   * pass a `to` into the dispatch seam without notifications importing auth/users
+   * (no module cycle, D64). Email lives in `auth.account`; phone on the profile.
+   */
+  async getContactInfo(userId: string): Promise<ContactInfo> {
+    const [identity, profile] = await Promise.all([
+      this.accountService.getIdentity(userId),
+      this.profileRepository.findByUserId(userId),
+    ]);
+    return {
+      email: identity?.email ?? null,
+      phone: profile?.phone ?? null,
     };
   }
 

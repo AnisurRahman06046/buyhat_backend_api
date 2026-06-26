@@ -8,10 +8,7 @@ import {
 import { DataSource } from 'typeorm';
 import { Role } from '../../../common/enums/role.enum';
 import { JwtPayload } from '../../../common/interfaces/jwt-payload.interface';
-import {
-  NOTIFICATION_PROVIDER,
-  NotificationProvider,
-} from '../../../shared/notifications';
+import { NotificationEvent, NotificationService } from '../../notifications';
 import { AuditAction, AuditService } from '../../audit';
 import { AuthTokensDto } from '../dto/auth-tokens.dto';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
@@ -52,8 +49,7 @@ export class AuthService {
     private readonly outboxService: OutboxService,
     private readonly outboxRelay: OutboxRelayService,
     @Inject(PASSWORD_HASHER) private readonly passwordHasher: PasswordHasher,
-    @Inject(NOTIFICATION_PROVIDER)
-    private readonly notifications: NotificationProvider,
+    private readonly notifications: NotificationService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -99,11 +95,12 @@ export class AuthService {
 
     // Best-effort post-commit side effects (the poller recovers if these fail).
     void this.outboxRelay.flush();
-    await this.notifications.sendEmail(
-      email,
-      'Verify your email',
-      `Your verification token: ${verificationToken}`,
-    );
+    await this.notifications.dispatch({
+      event: NotificationEvent.AUTH_VERIFY_EMAIL,
+      userId: accountId,
+      to: { email },
+      data: { token: verificationToken },
+    });
     await this.auditService.record({
       action: AuditAction.AUTH_REGISTER,
       actorId: accountId,
@@ -229,11 +226,12 @@ export class AuthService {
       OneTimeTokenPurpose.EMAIL_VERIFICATION,
       EMAIL_VERIFICATION_TTL,
     );
-    await this.notifications.sendEmail(
-      account.email,
-      'Verify your email',
-      `Your verification token: ${token}`,
-    );
+    await this.notifications.dispatch({
+      event: NotificationEvent.AUTH_VERIFY_EMAIL,
+      userId,
+      to: { email: account.email },
+      data: { token },
+    });
     return { sent: true };
   }
 
@@ -250,11 +248,12 @@ export class AuthService {
         OneTimeTokenPurpose.PASSWORD_RESET,
         PASSWORD_RESET_TTL,
       );
-      await this.notifications.sendEmail(
-        account.email,
-        'Reset your password',
-        `Your password reset token: ${token}`,
-      );
+      await this.notifications.dispatch({
+        event: NotificationEvent.AUTH_PASSWORD_RESET,
+        userId: account.id,
+        to: { email: account.email },
+        data: { token },
+      });
     }
     return { sent: true };
   }

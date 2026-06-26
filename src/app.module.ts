@@ -15,7 +15,7 @@ import { DatabaseModule } from './database/database.module';
 import { RedisModule } from './shared/redis/redis.module';
 import { REDIS_CLIENT } from './shared/redis/redis.service';
 import { QueueModule } from './shared/queue/queue.module';
-import { NotificationsModule } from './shared/notifications';
+import { NotificationProviderModule } from './shared/notifications';
 import { StorageModule } from './shared/storage';
 import { AuditModule } from './modules/audit';
 import { AuthModule } from './modules/auth/auth.module';
@@ -28,6 +28,7 @@ import { PaymentsModule } from './modules/payments';
 import { PromotionsModule } from './modules/promotions';
 import { CmsModule } from './modules/cms';
 import { ReviewsModule } from './modules/reviews';
+import { NotificationsModule } from './modules/notifications';
 import { HealthModule } from './modules/health/health.module';
 
 /**
@@ -99,7 +100,7 @@ import { HealthModule } from './modules/health/health.module';
     DatabaseModule,
     RedisModule,
     QueueModule,
-    NotificationsModule,
+    NotificationProviderModule,
     StorageModule,
 
     // 3. FEATURE MODULES — register new modules here.
@@ -114,6 +115,7 @@ import { HealthModule } from './modules/health/health.module';
     PromotionsModule,
     CmsModule,
     ReviewsModule,
+    NotificationsModule,
     HealthModule,
   ],
   providers: [

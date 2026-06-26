@@ -15,6 +15,7 @@ import { AuditAction, AuditService } from '../../audit';
 import { CartService } from '../../cart';
 import { VariantService } from '../../catalog';
 import { InventoryService } from '../../inventory';
+import { NotificationEvent, NotificationService } from '../../notifications';
 import { PromotionsService } from '../../promotions';
 import { AddressSnapshot, UsersService } from '../../users';
 import { AddressInputDto } from '../dto/address-input.dto';
@@ -61,6 +62,7 @@ export class OrderService {
     private readonly inventoryService: InventoryService,
     private readonly usersService: UsersService,
     private readonly promotionsService: PromotionsService,
+    private readonly notifications: NotificationService,
     private readonly auditService: AuditService,
     private readonly dataSource: DataSource,
   ) {}
@@ -468,6 +470,8 @@ export class OrderService {
       'Order confirmed (COD)',
     );
     await this.recordPromotionRedemption(order);
+    // COD confirmation is the customer's "order placed/confirmed" milestone.
+    void this.notifyOrderEvent(order, NotificationEvent.ORDER_PAID);
     return this.getOrderResponse(order.id);
   }
 
@@ -545,7 +549,45 @@ export class OrderService {
       await this.recordPromotionRedemption(order);
     }
 
+    // Best-effort customer notification for the milestone (Phase 10).
+    if (toStatus === OrderStatus.PAID) {
+      void this.notifyOrderEvent(order, NotificationEvent.ORDER_PAID);
+    } else if (toStatus === OrderStatus.SHIPPED) {
+      void this.notifyOrderEvent(order, NotificationEvent.ORDER_SHIPPED);
+    } else if (toStatus === OrderStatus.DELIVERED) {
+      void this.notifyOrderEvent(order, NotificationEvent.ORDER_DELIVERED);
+    }
+
     return this.getOrderResponse(order.id);
+  }
+
+  /**
+   * Best-effort customer notification for an order lifecycle milestone (D59).
+   * Resolves the buyer's contact via the users seam (D64) and dispatches through
+   * the notifications pipeline; never throws into the order transaction.
+   */
+  private async notifyOrderEvent(
+    order: Order,
+    event: NotificationEvent,
+  ): Promise<void> {
+    if (!order.userId) return;
+    try {
+      const contact = await this.usersService.getContactInfo(order.userId);
+      await this.notifications.dispatch({
+        event,
+        userId: order.userId,
+        to: { email: contact.email, phone: contact.phone },
+        data: {
+          orderNumber: order.orderNumber,
+          amount: order.grandTotal,
+          currency: order.currency,
+        },
+      });
+    } catch (err) {
+      this.logger.error(
+        `Order ${order.id} notification ${event} failed: ${String(err)}`,
+      );
+    }
   }
 
   /** Record coupon redemption + flash sold counts when an order commits (best-effort). */

@@ -2,7 +2,6 @@ import { InjectQueue } from '@nestjs/bullmq';
 import {
   BadRequestException,
   ConflictException,
-  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -10,10 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { DataSource, EntityManager } from 'typeorm';
-import {
-  NOTIFICATION_PROVIDER,
-  NotificationProvider,
-} from '../../../shared/notifications';
+import { NotificationEvent, NotificationService } from '../../notifications';
 import { QUEUE_NAMES } from '../../../shared/queue/queue.constants';
 import { buildPaginationMeta } from '../../../common/utils/pagination.util';
 import { PaginationMeta } from '../../../common/interfaces/api-response.interface';
@@ -75,8 +71,7 @@ export class InventoryService {
     private readonly reservationRepository: StockReservationRepository,
     private readonly dataSource: DataSource,
     @InjectQueue(QUEUE_NAMES.INVENTORY) private readonly queue: Queue,
-    @Inject(NOTIFICATION_PROVIDER)
-    private readonly notifications: NotificationProvider,
+    private readonly notifications: NotificationService,
     config: ConfigService,
   ) {
     this.reservationTtlMs =
@@ -668,14 +663,14 @@ export class InventoryService {
     this.logger.warn(
       `Low stock for variant ${item.variantId}: available ${available} ≤ reorder ${item.reorderLevel}`,
     );
-    void this.notifications
-      .sendEmail(
-        LOW_STOCK_ALERT_EMAIL,
-        `Low stock: variant ${item.variantId}`,
-        `Available ${available} is at or below reorder level ${item.reorderLevel}.`,
-      )
-      .catch((err) =>
-        this.logger.error(`Low-stock alert failed: ${String(err)}`),
-      );
+    void this.notifications.dispatch({
+      event: NotificationEvent.INVENTORY_LOW_STOCK,
+      to: { email: LOW_STOCK_ALERT_EMAIL },
+      data: {
+        variantId: item.variantId,
+        available,
+        reorderLevel: item.reorderLevel,
+      },
+    });
   }
 }

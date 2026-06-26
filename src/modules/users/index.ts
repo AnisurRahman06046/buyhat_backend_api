@@ -3,4 +3,4 @@
  */
 export { UsersModule } from './users.module';
 export { UsersService } from './services/users.service';
-export type { AddressSnapshot } from './services/users.service';
+export type { AddressSnapshot, ContactInfo } from './services/users.service';

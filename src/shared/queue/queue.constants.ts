@@ -10,6 +10,8 @@ export const QUEUE_NAMES = {
   CATALOG_EVENTS: 'catalog-events',
   /** Inventory background jobs (delayed reservation-expiry releases). */
   INVENTORY: 'inventory',
+  /** Notification delivery jobs (`{ notificationId }`), one per channel send. */
+  NOTIFICATIONS: 'notifications',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
