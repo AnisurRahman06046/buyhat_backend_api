@@ -26,6 +26,7 @@ import { CartModule } from './modules/cart';
 import { OrdersModule } from './modules/orders';
 import { PaymentsModule } from './modules/payments';
 import { PromotionsModule } from './modules/promotions';
+import { CmsModule } from './modules/cms';
 import { HealthModule } from './modules/health/health.module';
 
 /**
@@ -110,6 +111,7 @@ import { HealthModule } from './modules/health/health.module';
     OrdersModule,
     PaymentsModule,
     PromotionsModule,
+    CmsModule,
     HealthModule,
   ],
   providers: [

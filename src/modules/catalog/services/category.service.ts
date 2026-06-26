@@ -57,6 +57,20 @@ export class CategoryService {
     return CategoryResponseDto.fromEntity(await this.resolveCategory(idOrSlug));
   }
 
+  /**
+   * Cross-module (cms): active category summaries for a list of ids, in the
+   * **given order** (CATEGORY_GRID homepage section). Inactive/missing dropped.
+   */
+  async getCategorySummaries(ids: string[]): Promise<CategoryResponseDto[]> {
+    if (ids.length === 0) return [];
+    const categories = await this.categoryRepository.findByIds(ids);
+    const byId = new Map(categories.map((c) => [c.id, c]));
+    return ids
+      .map((id) => byId.get(id))
+      .filter((c): c is Category => c != null && c.isActive)
+      .map((c) => CategoryResponseDto.fromEntity(c));
+  }
+
   async resolvedAttributes(idOrSlug: string): Promise<AttributeResponseDto[]> {
     const category = await this.resolveCategory(idOrSlug);
     const resolved = await this.attributeResolver.resolveForCategory(

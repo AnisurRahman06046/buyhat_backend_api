@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { CatalogModule } from '../catalog';
 import { InventoryModule } from '../inventory';
+import { PromotionsModule } from '../promotions';
 import { CartController } from './controllers/cart.controller';
 import { Cart } from './entities/cart.entity';
 import { CartItem } from './entities/cart-item.entity';
@@ -12,14 +13,16 @@ import { CartService } from './services/cart.service';
 
 /**
  * `cart` feature module — guest + customer carts, merge-on-login, price snapshots.
- * Reads catalog (price/sellability) and inventory (availability) via their
- * services. Reservation/conversion happen in Phase 5 (orders).
+ * Reads catalog (price/sellability), inventory (availability), and promotions
+ * (flash prices + coupon apply/validate) via their services. Reservation/
+ * conversion happen in Phase 5 (orders).
  */
 @Module({
   imports: [
     TypeOrmModule.forFeature([Cart, CartItem]),
     CatalogModule,
     InventoryModule,
+    PromotionsModule,
   ],
   controllers: [CartController],
   providers: [

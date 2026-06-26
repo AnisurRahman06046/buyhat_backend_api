@@ -70,6 +70,24 @@ export class ProductRepository extends BaseRepository<Product> {
     return this.count({ where: { brandId } });
   }
 
+  /**
+   * ACTIVE products by id with brand/category + primary image, for CMS homepage
+   * hydration (FEATURED_PRODUCTS / BEST_SELLERS). Caller restores input order;
+   * missing/inactive ids are simply absent (CMS never blocks on catalog state).
+   */
+  findActiveSummariesByIds(ids: string[]): Promise<Product[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.repository
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.category', 'category')
+      .leftJoinAndSelect('p.brand', 'brand')
+      .leftJoinAndSelect('p.media', 'media', 'media.is_primary = true')
+      .where('p.id IN (:...ids)', { ids })
+      .andWhere('p.status = :status', { status: ProductStatus.ACTIVE })
+      .andWhere('p.deletedAt IS NULL')
+      .getMany();
+  }
+
   /** Public, filtered, paginated list (ACTIVE only). */
   search(params: ProductSearchParams): Promise<[Product[], number]> {
     const qb = this.repository

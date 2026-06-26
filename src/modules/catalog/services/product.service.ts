@@ -81,6 +81,21 @@ export class ProductService {
     return this.productRepository.categoryIdsByProduct(productIds);
   }
 
+  /**
+   * Cross-module (cms): ACTIVE product summaries (with primary image) for a list
+   * of ids, in the **given order**. Missing/inactive ids are dropped — the CMS
+   * homepage renders whatever still exists and never blocks on catalog deletes.
+   */
+  async getProductSummaries(ids: string[]): Promise<ProductListItemDto[]> {
+    if (ids.length === 0) return [];
+    const products = await this.productRepository.findActiveSummariesByIds(ids);
+    const byId = new Map(products.map((p) => [p.id, p]));
+    return ids
+      .map((id) => byId.get(id))
+      .filter((p): p is Product => p != null)
+      .map((p) => ProductListItemDto.fromEntity(p));
+  }
+
   async publicDetail(slug: string): Promise<ProductDetailResponseDto> {
     const product = await this.productRepository.findActiveBySlug(slug);
     if (!product) {

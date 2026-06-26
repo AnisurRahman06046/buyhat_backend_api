@@ -7,10 +7,12 @@ import {
 import { QueryFailedError } from 'typeorm';
 import { ProductService } from '../../catalog';
 import { CouponQuoteDto } from '../dto/promotion-response.dto';
+import { FlashSaleResponseDto } from '../dto/flash-sale-response.dto';
 import { CouponType } from '../enums/coupon-type.enum';
 import { CouponRepository } from '../repositories/coupon.repository';
 import { CouponRedemptionRepository } from '../repositories/coupon-redemption.repository';
 import { FlashSaleRepository } from '../repositories/flash-sale.repository';
+import { FlashSaleService } from './flash-sale.service';
 
 /** A priced cart/order line as the discount engine needs it. */
 export interface QuoteLine {
@@ -49,7 +51,13 @@ export class PromotionsService {
     private readonly redemptionRepository: CouponRedemptionRepository,
     private readonly flashSaleRepository: FlashSaleRepository,
     private readonly productService: ProductService,
+    private readonly flashSaleService: FlashSaleService,
   ) {}
+
+  /** Cross-module (cms): currently-active flash sales for homepage hydration. */
+  listActiveFlashSales(): Promise<FlashSaleResponseDto[]> {
+    return this.flashSaleService.listActive();
+  }
 
   /** Lowest active flash-sale price per variant right now (empty if none). */
   async getActiveFlashPrices(

@@ -86,6 +86,6 @@ import { VariantService } from './services/variant.service';
     OutboxService,
     CatalogOutboxRelayService,
   ],
-  exports: [ProductService, VariantService],
+  exports: [ProductService, VariantService, CategoryService, BrandService],
 })
 export class CatalogModule {}

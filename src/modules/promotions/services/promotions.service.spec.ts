@@ -9,6 +9,7 @@ import { CouponType } from '../enums/coupon-type.enum';
 import { CouponRepository } from '../repositories/coupon.repository';
 import { CouponRedemptionRepository } from '../repositories/coupon-redemption.repository';
 import { FlashSaleRepository } from '../repositories/flash-sale.repository';
+import { FlashSaleService } from './flash-sale.service';
 import { PromotionsService, QuoteCouponInput } from './promotions.service';
 
 /** A fully-valid PERCENTAGE coupon; override fields per test. */
@@ -33,7 +34,9 @@ const makeCoupon = (overrides: Partial<Coupon> = {}): Coupon =>
     ...overrides,
   }) as Coupon;
 
-const baseInput = (overrides: Partial<QuoteCouponInput> = {}): QuoteCouponInput => ({
+const baseInput = (
+  overrides: Partial<QuoteCouponInput> = {},
+): QuoteCouponInput => ({
   code: 'SAVE10',
   userId: 'user-1',
   ip: '10.0.0.1',
@@ -47,6 +50,7 @@ describe('PromotionsService', () => {
   let redemptionRepository: jest.Mocked<CouponRedemptionRepository>;
   let flashSaleRepository: jest.Mocked<FlashSaleRepository>;
   let productService: jest.Mocked<ProductService>;
+  let flashSaleService: jest.Mocked<FlashSaleService>;
   let service: PromotionsService;
 
   beforeEach(() => {
@@ -68,12 +72,16 @@ describe('PromotionsService', () => {
     productService = {
       getProductCategories: jest.fn().mockResolvedValue(new Map()),
     } as unknown as jest.Mocked<ProductService>;
+    flashSaleService = {
+      listActive: jest.fn().mockResolvedValue([]),
+    } as unknown as jest.Mocked<FlashSaleService>;
 
     service = new PromotionsService(
       couponRepository,
       redemptionRepository,
       flashSaleRepository,
       productService,
+      flashSaleService,
     );
   });
 
@@ -236,9 +244,7 @@ describe('PromotionsService', () => {
       { variantId: 'v1', salePrice: 80 },
       { variantId: 'v1', salePrice: 70 },
       { variantId: 'v2', salePrice: 50 },
-    ] as Awaited<
-      ReturnType<FlashSaleRepository['activeItemsForVariants']>
-    >);
+    ] as Awaited<ReturnType<FlashSaleRepository['activeItemsForVariants']>>);
     const prices = await service.getActiveFlashPrices(['v1', 'v2']);
     expect(prices.get('v1')).toBe(70);
     expect(prices.get('v2')).toBe(50);

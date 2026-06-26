@@ -32,4 +32,15 @@ export default tseslint.config(
       "prettier/prettier": ["error", { endOfLine: "auto" }],
     },
   },
+  {
+    // Tests build hand-rolled mocks (`jest.fn((x) => x)`) and assert on method
+    // references (`expect(repo.save).toHaveBeenCalled()`); the type-checked
+    // unbound-method / unsafe rules fight those idioms. Relax them for specs.
+    files: ['**/*.spec.ts', '**/*.e2e-spec.ts', 'test/**/*.ts'],
+    rules: {
+      '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+    },
+  },
 );

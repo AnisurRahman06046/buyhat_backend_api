@@ -31,8 +31,10 @@ describe('Health (e2e)', () => {
       .get('/health/live')
       .expect(200)
       .expect((res) => {
-        const body = res.body as { data?: { status?: string } };
-        if (body.data?.status !== 'ok') {
+        // /health/* is excluded from the global ResponseInterceptor envelope,
+        // so the body is the raw `{ status: 'ok' }` (not wrapped in `data`).
+        const body = res.body as { status?: string };
+        if (body.status !== 'ok') {
           throw new Error(`Unexpected body: ${JSON.stringify(res.body)}`);
         }
       });

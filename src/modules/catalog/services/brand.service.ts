@@ -35,6 +35,26 @@ export class BrandService {
     return BrandResponseDto.fromEntity(await this.getEntityOrThrow(id));
   }
 
+  /** Cross-module (cms): all active brands (BRANDS homepage section, no ids). */
+  async getActiveBrands(): Promise<BrandResponseDto[]> {
+    const brands = await this.brandRepository.findActiveOrdered();
+    return brands.map((b) => BrandResponseDto.fromEntity(b));
+  }
+
+  /**
+   * Cross-module (cms): active brand summaries for a list of ids, in the **given
+   * order**; falls back to all active brands when no ids are supplied.
+   */
+  async getBrandSummaries(ids: string[]): Promise<BrandResponseDto[]> {
+    if (ids.length === 0) return this.getActiveBrands();
+    const brands = await this.brandRepository.findByIds(ids);
+    const byId = new Map(brands.map((b) => [b.id, b]));
+    return ids
+      .map((id) => byId.get(id))
+      .filter((b): b is Brand => b != null && b.isActive)
+      .map((b) => BrandResponseDto.fromEntity(b));
+  }
+
   async update(id: string, dto: UpdateBrandDto): Promise<BrandResponseDto> {
     const brand = await this.getEntityOrThrow(id);
     const { slug, ...rest } = dto;

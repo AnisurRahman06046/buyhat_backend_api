@@ -16,6 +16,7 @@ export class ProductListItemDto {
   @ApiProperty({ nullable: true }) categoryName: string | null;
   @ApiProperty({ nullable: true }) brandId: string | null;
   @ApiProperty({ nullable: true }) brandName: string | null;
+  @ApiProperty({ nullable: true }) imageUrl: string | null;
 
   static fromEntity(p: Product): ProductListItemDto {
     const dto = new ProductListItemDto();
@@ -31,6 +32,10 @@ export class ProductListItemDto {
     dto.categoryName = p.category?.name ?? null;
     dto.brandId = p.brandId;
     dto.brandName = p.brand?.name ?? null;
+    // Primary image when the media relation is loaded (homepage summaries);
+    // null on the plain list endpoint where media isn't joined.
+    const media = p.media ?? [];
+    dto.imageUrl = (media.find((m) => m.isPrimary) ?? media[0])?.url ?? null;
     return dto;
   }
 }

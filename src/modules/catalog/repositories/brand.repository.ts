@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { BaseRepository } from '../../../common/repositories/base.repository';
 import { Brand } from '../entities/brand.entity';
 
@@ -23,5 +23,14 @@ export class BrandRepository extends BaseRepository<Brand> {
 
   findAllOrdered(): Promise<Brand[]> {
     return this.findMany({ order: { name: 'ASC' } });
+  }
+
+  findActiveOrdered(): Promise<Brand[]> {
+    return this.findMany({ where: { isActive: true }, order: { name: 'ASC' } });
+  }
+
+  findByIds(ids: string[]): Promise<Brand[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.findMany({ where: { id: In(ids) } });
   }
 }

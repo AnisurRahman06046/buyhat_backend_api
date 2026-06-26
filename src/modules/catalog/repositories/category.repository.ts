@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { BaseRepository } from '../../../common/repositories/base.repository';
 import { Category } from '../entities/category.entity';
 
@@ -27,5 +27,10 @@ export class CategoryRepository extends BaseRepository<Category> {
 
   findAllOrdered(): Promise<Category[]> {
     return this.findMany({ order: { position: 'ASC', name: 'ASC' } });
+  }
+
+  findByIds(ids: string[]): Promise<Category[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.findMany({ where: { id: In(ids) } });
   }
 }

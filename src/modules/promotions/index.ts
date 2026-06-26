@@ -9,3 +9,7 @@ export type {
   QuoteLine,
   RedeemInput,
 } from './services/promotions.service';
+export {
+  FlashSaleResponseDto,
+  FlashSaleItemResponseDto,
+} from './dto/flash-sale-response.dto';
