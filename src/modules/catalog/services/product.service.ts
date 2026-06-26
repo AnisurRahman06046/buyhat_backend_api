@@ -81,6 +81,28 @@ export class ProductService {
     return this.productRepository.categoryIdsByProduct(productIds);
   }
 
+  /** Cross-module (reviews): does a product exist? (create-time validation). */
+  productExists(productId: string): Promise<boolean> {
+    return this.productRepository.exists({ id: productId });
+  }
+
+  /**
+   * Cross-module (reviews): set the denormalized rating aggregate. Reviews is the
+   * source of truth and passes the freshly-recomputed avg/count; catalog only
+   * stores them (never reads the reviews tables).
+   */
+  applyRatingAggregate(
+    productId: string,
+    ratingAvg: number,
+    ratingCount: number,
+  ): Promise<void> {
+    return this.productRepository.updateRating(
+      productId,
+      ratingAvg,
+      ratingCount,
+    );
+  }
+
   /**
    * Cross-module (cms): ACTIVE product summaries (with primary image) for a list
    * of ids, in the **given order**. Missing/inactive ids are dropped — the CMS

@@ -395,6 +395,19 @@ export class OrderService {
     await this.persistTransition(order, toStatus, paymentStatus, actorId, note);
   }
 
+  // --- reviews seam (reviews → orders, one-way) ------------------------------
+
+  /**
+   * The most recent order id by which the user actually purchased the product
+   * (past-checkout status), or null. Drives the reviews verified-purchase flag.
+   */
+  findPurchasedOrderId(
+    userId: string,
+    productId: string,
+  ): Promise<string | null> {
+    return this.orderRepository.findPurchasedOrderId(userId, productId);
+  }
+
   // --- payments seams (payments → orders, one-way) ---------------------------
 
   /** Payment view of an order: validates ownership + that it's still payable. */

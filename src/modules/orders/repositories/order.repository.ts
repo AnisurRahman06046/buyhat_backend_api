@@ -32,6 +32,30 @@ export class OrderRepository extends BaseRepository<Order> {
     return this.exists({ orderNumber });
   }
 
+  /**
+   * Most recent order id by which `userId` actually bought `productId` — a
+   * "qualifying" purchase is any order containing the product whose status is
+   * past checkout (not PENDING/CANCELLED). Drives the verified-purchase flag.
+   */
+  async findPurchasedOrderId(
+    userId: string,
+    productId: string,
+  ): Promise<string | null> {
+    const row = await this.repository
+      .createQueryBuilder('o')
+      .innerJoin('o.items', 'item')
+      .where('o.user_id = :userId', { userId })
+      .andWhere('item.product_id = :productId', { productId })
+      .andWhere('o.status NOT IN (:...excluded)', {
+        excluded: [OrderStatus.PENDING, OrderStatus.CANCELLED],
+      })
+      .orderBy('o.placed_at', 'DESC', 'NULLS LAST')
+      .select('o.id', 'id')
+      .limit(1)
+      .getRawOne<{ id: string }>();
+    return row?.id ?? null;
+  }
+
   /** Newest-first page, optionally scoped to a user and/or status. */
   list(
     skip: number,

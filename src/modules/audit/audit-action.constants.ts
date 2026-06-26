@@ -13,6 +13,8 @@ export const AuditAction = {
   PAYMENT_INITIATED: 'payment.initiated',
   PAYMENT_SUCCEEDED: 'payment.succeeded',
   PAYMENT_REFUNDED: 'payment.refunded',
+  REVIEW_CREATED: 'review.created',
+  REVIEW_MODERATED: 'review.moderated',
 } as const;
 
 export type AuditActionType = (typeof AuditAction)[keyof typeof AuditAction];

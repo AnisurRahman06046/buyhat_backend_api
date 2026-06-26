@@ -27,6 +27,7 @@ import { OrdersModule } from './modules/orders';
 import { PaymentsModule } from './modules/payments';
 import { PromotionsModule } from './modules/promotions';
 import { CmsModule } from './modules/cms';
+import { ReviewsModule } from './modules/reviews';
 import { HealthModule } from './modules/health/health.module';
 
 /**
@@ -112,6 +113,7 @@ import { HealthModule } from './modules/health/health.module';
     PaymentsModule,
     PromotionsModule,
     CmsModule,
+    ReviewsModule,
     HealthModule,
   ],
   providers: [

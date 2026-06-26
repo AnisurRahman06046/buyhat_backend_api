@@ -70,6 +70,15 @@ export class ProductRepository extends BaseRepository<Product> {
     return this.count({ where: { brandId } });
   }
 
+  /** Set the denormalized rating aggregate (driven by the reviews module). */
+  async updateRating(
+    productId: string,
+    ratingAvg: number,
+    ratingCount: number,
+  ): Promise<void> {
+    await this.repository.update({ id: productId }, { ratingAvg, ratingCount });
+  }
+
   /**
    * ACTIVE products by id with brand/category + primary image, for CMS homepage
    * hydration (FEATURED_PRODUCTS / BEST_SELLERS). Caller restores input order;
