@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { CACHE_KEYS, CacheService } from '../../../shared/cache';
 import { CreateHomepageSectionDto } from '../dto/create-homepage-section.dto';
 import { HomepageSectionResponseDto } from '../dto/homepage-section-response.dto';
 import { UpdateHomepageSectionDto } from '../dto/update-homepage-section.dto';
@@ -12,6 +13,7 @@ export class HomepageSectionService {
   constructor(
     private readonly repository: HomepageSectionRepository,
     private readonly dataSource: DataSource,
+    private readonly cache: CacheService,
   ) {}
 
   async create(
@@ -26,6 +28,7 @@ export class HomepageSectionService {
         config: dto.config ?? {},
       }),
     );
+    await this.cache.del(CACHE_KEYS.homepage());
     return HomepageSectionResponseDto.fromEntity(section);
   }
 
@@ -45,14 +48,15 @@ export class HomepageSectionService {
     if (dto.position !== undefined) section.position = dto.position;
     if (dto.isActive !== undefined) section.isActive = dto.isActive;
     if (dto.config !== undefined) section.config = dto.config;
-    return HomepageSectionResponseDto.fromEntity(
-      await this.repository.save(section),
-    );
+    const saved = await this.repository.save(section);
+    await this.cache.del(CACHE_KEYS.homepage());
+    return HomepageSectionResponseDto.fromEntity(saved);
   }
 
   async remove(id: string): Promise<void> {
     await this.getOrThrow(id);
     await this.repository.softDelete(id);
+    await this.cache.del(CACHE_KEYS.homepage());
   }
 
   /** Rewrite every section's `position` to match the given id order (one tx). */
@@ -66,6 +70,7 @@ export class HomepageSectionService {
         );
       }
     });
+    await this.cache.del(CACHE_KEYS.homepage());
     return this.list();
   }
 

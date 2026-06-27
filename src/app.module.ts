@@ -17,6 +17,7 @@ import { REDIS_CLIENT } from './shared/redis/redis.service';
 import { QueueModule } from './shared/queue/queue.module';
 import { NotificationProviderModule } from './shared/notifications';
 import { StorageModule } from './shared/storage';
+import { CacheModule } from './shared/cache';
 import { AuditModule } from './modules/audit';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -103,6 +104,7 @@ import { HealthModule } from './modules/health/health.module';
     QueueModule,
     NotificationProviderModule,
     StorageModule,
+    CacheModule,
 
     // 3. FEATURE MODULES — register new modules here.
     AuditModule,

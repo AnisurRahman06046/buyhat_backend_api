@@ -19,6 +19,7 @@ import { CATALOG_WRITE_ROLES } from '../catalog.constants';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { GenerateVariantsDto } from '../dto/generate-variants.dto';
 import { ProductListQueryDto } from '../dto/product-list-query.dto';
+import { ProductSearchQueryDto } from '../dto/product-search-query.dto';
 import { SetAttributeValuesDto } from '../dto/set-attribute-values.dto';
 import { UpdateProductDto } from '../dto/update-product.dto';
 import { ProductService } from '../services/product.service';
@@ -38,6 +39,15 @@ export class ProductController {
   @ApiOperation({ summary: 'List products (ACTIVE only)' })
   list(@Query() query: ProductListQueryDto) {
     return this.productService.list(query);
+  }
+
+  @Public()
+  @Get('search')
+  @ApiOperation({
+    summary: 'Faceted product search (full-text, filters, facets, keyset)',
+  })
+  search(@Query() query: ProductSearchQueryDto) {
+    return this.productService.search(query);
   }
 
   @Public()

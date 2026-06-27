@@ -26,6 +26,12 @@ export enum StorageDriver {
   S3 = 's3',
 }
 
+/** Product search backend (D72 / Phase 12). */
+export enum SearchDriver {
+  Pg = 'pg',
+  Elasticsearch = 'elasticsearch',
+}
+
 /**
  * Strongly-typed schema for all environment variables the app expects.
  * `@nestjs/config` calls `validate()` at startup; if any required var is
@@ -174,6 +180,11 @@ export class EnvironmentVariables {
   @Min(1)
   @IsOptional()
   CATALOG_MAX_VARIANTS_PER_GENERATION = 200;
+
+  // ---- Search ----
+  @IsEnum(SearchDriver)
+  @IsOptional()
+  SEARCH_DRIVER: SearchDriver = SearchDriver.Pg;
 
   // ---- Inventory ----
   @Type(() => Number)

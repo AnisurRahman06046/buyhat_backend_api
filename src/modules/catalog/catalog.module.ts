@@ -1,6 +1,8 @@
 import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { QUEUE_NAMES } from '../../shared/queue/queue.constants';
 import { AttributeController } from './controllers/attribute.controller';
 import { BrandController } from './controllers/brand.controller';
@@ -36,6 +38,22 @@ import { CatalogOutboxRelayService } from './services/outbox-relay.service';
 import { OutboxService } from './services/outbox.service';
 import { ProductService } from './services/product.service';
 import { VariantService } from './services/variant.service';
+import { ElasticsearchSearchProvider } from './search/elasticsearch-search.provider';
+import { PostgresSearchProvider } from './search/postgres-search.provider';
+import { SEARCH_PROVIDER, SearchProvider } from './search/search.types';
+
+/** Pick the search backend per `SEARCH_DRIVER` (D72); default = Postgres. */
+const searchProvider = {
+  provide: SEARCH_PROVIDER,
+  inject: [ConfigService, DataSource],
+  useFactory: (
+    config: ConfigService,
+    dataSource: DataSource,
+  ): SearchProvider =>
+    config.get<string>('search.driver') === 'elasticsearch'
+      ? new ElasticsearchSearchProvider()
+      : new PostgresSearchProvider(dataSource),
+};
 
 /**
  * `catalog` feature module — categories, attributes (dynamic), brands, products,
@@ -85,6 +103,7 @@ import { VariantService } from './services/variant.service';
     MediaService,
     OutboxService,
     CatalogOutboxRelayService,
+    searchProvider,
   ],
   exports: [ProductService, VariantService, CategoryService, BrandService],
 })

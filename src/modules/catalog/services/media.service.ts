@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
+import { CACHE_KEYS, CacheService } from '../../../shared/cache';
 import {
   PresignedPut,
   STORAGE_PROVIDER,
@@ -47,6 +48,7 @@ export class MediaService {
     private readonly variantRepository: ProductVariantRepository,
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
     private readonly dataSource: DataSource,
+    private readonly cache: CacheService,
     config: ConfigService,
   ) {
     this.maxBytes = Math.min(
@@ -148,6 +150,7 @@ export class MediaService {
       if (dto.position !== undefined) media.position = dto.position;
       await manager.save(media);
     });
+    await this.cache.delByPrefix(CACHE_KEYS.productPrefix());
     return MediaResponseDto.fromEntity(media);
   }
 
@@ -158,6 +161,7 @@ export class MediaService {
       await this.storage.deleteObject(media.storageKey);
     }
     await this.mediaRepository.hardDelete(id);
+    await this.cache.delByPrefix(CACHE_KEYS.productPrefix());
   }
 
   // --- helpers ---
@@ -198,6 +202,7 @@ export class MediaService {
         }),
       );
     });
+    await this.cache.delByPrefix(CACHE_KEYS.productPrefix());
     return MediaResponseDto.fromEntity(saved);
   }
 

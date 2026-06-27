@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
@@ -8,8 +9,19 @@ import { DataSource } from 'typeorm';
 import { PaginationMeta } from '../../../common/interfaces/api-response.interface';
 import { buildPaginationMeta } from '../../../common/utils/pagination.util';
 import { uniqueSlug } from '../../../common/utils/slug.util';
+import {
+  CACHE_KEYS,
+  CACHE_TTL_DEFAULTS,
+  CacheService,
+} from '../../../shared/cache';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { ProductDetailResponseDto } from '../dto/product-detail-response.dto';
+import { ProductSearchQueryDto } from '../dto/product-search-query.dto';
+import {
+  ProductSearchResult,
+  SEARCH_PROVIDER,
+  SearchProvider,
+} from '../search/search.types';
 import { ProductListItemDto } from '../dto/product-response.dto';
 import { ProductListQueryDto } from '../dto/product-list-query.dto';
 import { SetAttributeValuesDto } from '../dto/set-attribute-values.dto';
@@ -34,7 +46,29 @@ export class ProductService {
     private readonly brandRepository: BrandRepository,
     private readonly attributeResolver: AttributeResolverService,
     private readonly dataSource: DataSource,
+    private readonly cache: CacheService,
+    @Inject(SEARCH_PROVIDER) private readonly searchProvider: SearchProvider,
   ) {}
+
+  /** Faceted, keyset-paginated product search (delegates to the search port). */
+  search(query: ProductSearchQueryDto): Promise<ProductSearchResult> {
+    return this.searchProvider.search({
+      q: query.q,
+      categoryId: query.categoryId,
+      brandId: query.brandId,
+      minPrice: query.minPrice,
+      maxPrice: query.maxPrice,
+      attributes: query.toAttributeFilters(),
+      sort: query.sort ?? (query.q ? 'relevance' : 'newest'),
+      cursor: query.cursor,
+      limit: query.limit,
+    });
+  }
+
+  /** Bust all cached product-detail entries after a catalog write. */
+  evictProductCaches(): Promise<void> {
+    return this.cache.delByPrefix(CACHE_KEYS.productPrefix());
+  }
 
   async create(
     dto: CreateProductDto,
@@ -119,12 +153,18 @@ export class ProductService {
   }
 
   async publicDetail(slug: string): Promise<ProductDetailResponseDto> {
-    const product = await this.productRepository.findActiveBySlug(slug);
-    if (!product) {
-      throw new NotFoundException(`Product "${slug}" not found`);
-    }
-    product.variants = (product.variants ?? []).filter((v) => v.isActive);
-    return ProductDetailResponseDto.fromEntity(product);
+    return this.cache.getOrSet(
+      CACHE_KEYS.productBySlug(slug),
+      CACHE_TTL_DEFAULTS.productDetail,
+      async () => {
+        const product = await this.productRepository.findActiveBySlug(slug);
+        if (!product) {
+          throw new NotFoundException(`Product "${slug}" not found`);
+        }
+        product.variants = (product.variants ?? []).filter((v) => v.isActive);
+        return ProductDetailResponseDto.fromEntity(product);
+      },
+    );
   }
 
   async list(query: ProductListQueryDto): Promise<{
@@ -168,6 +208,7 @@ export class ProductService {
     if (dto.currency !== undefined) product.currency = dto.currency;
     product.updatedBy = actorId;
     await this.productRepository.save(product);
+    await this.evictProductCaches();
     return this.detail(id);
   }
 
@@ -176,6 +217,7 @@ export class ProductService {
     product.status = ProductStatus.ARCHIVED;
     await this.productRepository.save(product);
     await this.productRepository.softDelete(id);
+    await this.evictProductCaches();
   }
 
   async setAttributeValues(
@@ -239,6 +281,7 @@ export class ProductService {
         }
       }
     });
+    await this.evictProductCaches();
     return this.detail(id);
   }
 
@@ -255,6 +298,7 @@ export class ProductService {
     }
     product.status = ProductStatus.ACTIVE;
     await this.productRepository.save(product);
+    await this.evictProductCaches();
     return this.detail(id);
   }
 
@@ -262,6 +306,7 @@ export class ProductService {
     const product = await this.getEntityOrThrow(id);
     product.status = ProductStatus.ARCHIVED;
     await this.productRepository.save(product);
+    await this.evictProductCaches();
     return this.detail(id);
   }
 

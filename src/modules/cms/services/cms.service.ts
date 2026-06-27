@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { BrandService, CategoryService, ProductService } from '../../catalog';
 import { PromotionsService } from '../../promotions';
 import { ReportingService } from '../../reporting';
+import {
+  CACHE_KEYS,
+  CACHE_TTL_DEFAULTS,
+  CacheService,
+} from '../../../shared/cache';
 import { RenderedHomepageSectionDto } from '../dto/homepage-section-response.dto';
 import { HomepageSection } from '../entities/homepage-section.entity';
 import { BannerPlacement } from '../enums/banner-placement.enum';
@@ -32,11 +37,18 @@ export class CmsService {
     private readonly brandService: BrandService,
     private readonly promotionsService: PromotionsService,
     private readonly reportingService: ReportingService,
+    private readonly cache: CacheService,
   ) {}
 
   async getHomepage(): Promise<RenderedHomepageSectionDto[]> {
-    const sections = await this.sectionRepository.findActiveOrdered();
-    return Promise.all(sections.map((s) => this.renderSection(s)));
+    return this.cache.getOrSet(
+      CACHE_KEYS.homepage(),
+      CACHE_TTL_DEFAULTS.homepage,
+      async () => {
+        const sections = await this.sectionRepository.findActiveOrdered();
+        return Promise.all(sections.map((s) => this.renderSection(s)));
+      },
+    );
   }
 
   private async renderSection(

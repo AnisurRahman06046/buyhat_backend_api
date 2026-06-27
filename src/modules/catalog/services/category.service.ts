@@ -5,6 +5,11 @@ import {
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import { uniqueSlug } from '../../../common/utils/slug.util';
+import {
+  CACHE_KEYS,
+  CACHE_TTL_DEFAULTS,
+  CacheService,
+} from '../../../shared/cache';
 import { AssignAttributeDto } from '../dto/assign-attribute.dto';
 import { AttributeResponseDto } from '../dto/attribute-response.dto';
 import { CategoryResponseDto } from '../dto/category-response.dto';
@@ -25,6 +30,7 @@ export class CategoryService {
     private readonly attributeRepository: AttributeRepository,
     private readonly attributeResolver: AttributeResolverService,
     private readonly productRepository: ProductRepository,
+    private readonly cache: CacheService,
   ) {}
 
   async create(dto: CreateCategoryDto): Promise<CategoryResponseDto> {
@@ -45,12 +51,19 @@ export class CategoryService {
         isActive: dto.isActive ?? true,
       }),
     );
+    await this.cache.del(CACHE_KEYS.categoryTree());
     return CategoryResponseDto.fromEntity(category);
   }
 
   async tree(): Promise<CategoryResponseDto[]> {
-    const all = await this.categoryRepository.findAllOrdered();
-    return this.buildTree(all, null);
+    return this.cache.getOrSet(
+      CACHE_KEYS.categoryTree(),
+      CACHE_TTL_DEFAULTS.categoryTree,
+      async () => {
+        const all = await this.categoryRepository.findAllOrdered();
+        return this.buildTree(all, null);
+      },
+    );
   }
 
   async findOne(idOrSlug: string): Promise<CategoryResponseDto> {
@@ -102,9 +115,9 @@ export class CategoryService {
         this.categoryRepository.slugExists(s),
       );
     }
-    return CategoryResponseDto.fromEntity(
-      await this.categoryRepository.save(category),
-    );
+    const saved = await this.categoryRepository.save(category);
+    await this.cache.del(CACHE_KEYS.categoryTree());
+    return CategoryResponseDto.fromEntity(saved);
   }
 
   async remove(id: string): Promise<void> {
@@ -116,6 +129,7 @@ export class CategoryService {
       throw new ConflictException('Category has products; archive them first');
     }
     await this.categoryRepository.softDelete(id);
+    await this.cache.del(CACHE_KEYS.categoryTree());
   }
 
   async assignAttribute(

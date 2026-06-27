@@ -60,6 +60,11 @@ export interface CatalogConfig {
   maxVariantsPerGeneration: number;
 }
 
+export interface SearchConfig {
+  /** `pg` = Postgres full-text (default); `elasticsearch` = deferred adapter (D72). */
+  driver: 'pg' | 'elasticsearch';
+}
+
 export interface InventoryConfig {
   /** How long a stock reservation is held before expiry releases it (D18). */
   reservationTtlMinutes: number;
@@ -89,6 +94,7 @@ export interface Configuration {
   throttle: ThrottleConfig;
   storage: StorageConfig;
   catalog: CatalogConfig;
+  search: SearchConfig;
   inventory: InventoryConfig;
   cart: CartConfig;
   payments: PaymentsConfig;
@@ -142,6 +148,10 @@ export default (): Configuration => ({
       process.env.CATALOG_MAX_VARIANTS_PER_GENERATION ?? '200',
       10,
     ),
+  },
+  search: {
+    driver:
+      (process.env.SEARCH_DRIVER as 'pg' | 'elasticsearch' | undefined) ?? 'pg',
   },
   inventory: {
     reservationTtlMinutes: parseInt(

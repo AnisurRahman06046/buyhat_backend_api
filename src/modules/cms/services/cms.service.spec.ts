@@ -1,6 +1,7 @@
 import { BrandService, CategoryService, ProductService } from '../../catalog';
 import { PromotionsService } from '../../promotions';
 import { ReportingService } from '../../reporting';
+import { CacheService } from '../../../shared/cache';
 import { HomepageSection } from '../entities/homepage-section.entity';
 import { BannerPlacement } from '../enums/banner-placement.enum';
 import { HomepageSectionType } from '../enums/homepage-section-type.enum';
@@ -31,6 +32,7 @@ describe('CmsService (homepage hydration)', () => {
   let brandService: jest.Mocked<BrandService>;
   let promotionsService: jest.Mocked<PromotionsService>;
   let reportingService: jest.Mocked<ReportingService>;
+  let cache: jest.Mocked<CacheService>;
   let service: CmsService;
 
   beforeEach(() => {
@@ -55,6 +57,13 @@ describe('CmsService (homepage hydration)', () => {
     reportingService = {
       getBestSellers: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<ReportingService>;
+    cache = {
+      // Pass-through so the loader runs and hydration assertions hold.
+      getOrSet: jest.fn(
+        (_key: string, _ttl: number, loader: () => Promise<unknown>) =>
+          loader(),
+      ),
+    } as unknown as jest.Mocked<CacheService>;
 
     service = new CmsService(
       sectionRepository,
@@ -64,6 +73,7 @@ describe('CmsService (homepage hydration)', () => {
       brandService,
       promotionsService,
       reportingService,
+      cache,
     );
   });
 

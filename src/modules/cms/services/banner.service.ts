@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { CACHE_KEYS, CacheService } from '../../../shared/cache';
 import { BannerResponseDto } from '../dto/banner-response.dto';
 import { CreateBannerDto } from '../dto/create-banner.dto';
 import { UpdateBannerDto } from '../dto/update-banner.dto';
@@ -8,7 +9,10 @@ import { CmsBannerRepository } from '../repositories/cms-banner.repository';
 
 @Injectable()
 export class BannerService {
-  constructor(private readonly repository: CmsBannerRepository) {}
+  constructor(
+    private readonly repository: CmsBannerRepository,
+    private readonly cache: CacheService,
+  ) {}
 
   async create(dto: CreateBannerDto): Promise<BannerResponseDto> {
     const banner = await this.repository.save(
@@ -25,6 +29,7 @@ export class BannerService {
         isActive: dto.isActive ?? true,
       }),
     );
+    await this.cache.del(CACHE_KEYS.homepage());
     return BannerResponseDto.fromEntity(banner);
   }
 
@@ -52,12 +57,15 @@ export class BannerService {
     if (dto.endsAt !== undefined)
       banner.endsAt = dto.endsAt ? new Date(dto.endsAt) : null;
     if (dto.isActive !== undefined) banner.isActive = dto.isActive;
-    return BannerResponseDto.fromEntity(await this.repository.save(banner));
+    const saved = await this.repository.save(banner);
+    await this.cache.del(CACHE_KEYS.homepage());
+    return BannerResponseDto.fromEntity(saved);
   }
 
   async remove(id: string): Promise<void> {
     await this.getOrThrow(id);
     await this.repository.softDelete(id);
+    await this.cache.del(CACHE_KEYS.homepage());
   }
 
   /** Public: active banners for a placement whose window includes now (D49). */

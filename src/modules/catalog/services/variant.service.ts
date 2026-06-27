@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { EntityManager, DataSource } from 'typeorm';
 import { slugify } from '../../../common/utils/slug.util';
+import { CACHE_KEYS, CacheService } from '../../../shared/cache';
 import { ProductStatus } from '../enums/product-status.enum';
 import {
   GenerateVariantsDto,
@@ -56,6 +57,7 @@ export class VariantService {
     private readonly attributeResolver: AttributeResolverService,
     private readonly dataSource: DataSource,
     private readonly outboxService: OutboxService,
+    private readonly cache: CacheService,
     config: ConfigService,
   ) {
     this.maxVariantsPerGeneration =
@@ -183,6 +185,7 @@ export class VariantService {
       }
     });
 
+    if (created > 0) await this.cache.delByPrefix(CACHE_KEYS.productPrefix());
     return {
       created,
       skipped,
@@ -237,6 +240,7 @@ export class VariantService {
     if (dto.weight !== undefined) variant.weight = dto.weight ?? null;
     if (dto.isActive !== undefined) variant.isActive = dto.isActive;
     await this.variantRepository.save(variant);
+    await this.cache.delByPrefix(CACHE_KEYS.productPrefix());
     return VariantResponseDto.fromEntity(
       (await this.variantRepository.findDetail(id))!,
     );
@@ -247,6 +251,7 @@ export class VariantService {
       throw new NotFoundException(`Variant ${id} not found`);
     }
     await this.variantRepository.softDelete(id);
+    await this.cache.delByPrefix(CACHE_KEYS.productPrefix());
   }
 
   private cartesian(
