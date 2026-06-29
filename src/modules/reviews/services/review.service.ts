@@ -10,6 +10,7 @@ import { buildPaginationMeta } from '../../../common/utils/pagination.util';
 import { AuditAction, AuditService } from '../../audit';
 import { ProductService } from '../../catalog';
 import { OrderService } from '../../orders';
+import { UsersService } from '../../users';
 import { CreateReviewDto } from '../dto/create-review.dto';
 import { ReviewQueryDto } from '../dto/review-query.dto';
 import {
@@ -34,6 +35,7 @@ export class ReviewService {
     private readonly reviewRepository: ReviewRepository,
     private readonly productService: ProductService,
     private readonly orderService: OrderService,
+    private readonly usersService: UsersService,
     private readonly auditService: AuditService,
   ) {}
 
@@ -119,8 +121,22 @@ export class ReviewService {
       query.skip,
       query.limit,
     );
+    const [products, names] = await Promise.all([
+      this.productService.productSummariesByIds([
+        ...new Set(rows.map((r) => r.productId)),
+      ]),
+      this.usersService.displayNamesByIds([
+        ...new Set(rows.map((r) => r.userId)),
+      ]),
+    ]);
+    const data = rows.map((r) => {
+      const dto = ReviewResponseDto.fromEntity(r);
+      dto.productName = products.get(r.productId)?.name ?? null;
+      dto.authorName = names.get(r.userId) ?? null;
+      return dto;
+    });
     return {
-      data: rows.map((r) => ReviewResponseDto.fromEntity(r)),
+      data,
       pagination: buildPaginationMeta(total, query.page, query.limit),
     };
   }

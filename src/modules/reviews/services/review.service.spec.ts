@@ -4,6 +4,7 @@ import { AuthenticatedUser } from '../../../common/interfaces/authenticated-requ
 import { AuditService } from '../../audit';
 import { ProductService } from '../../catalog';
 import { OrderService } from '../../orders';
+import { UsersService } from '../../users';
 import { Review } from '../entities/review.entity';
 import { ReviewStatus } from '../enums/review-status.enum';
 import { ReviewRepository } from '../repositories/review.repository';
@@ -42,6 +43,7 @@ describe('ReviewService', () => {
   let reviewRepository: jest.Mocked<ReviewRepository>;
   let productService: jest.Mocked<ProductService>;
   let orderService: jest.Mocked<OrderService>;
+  let usersService: jest.Mocked<UsersService>;
   let auditService: jest.Mocked<AuditService>;
   let service: ReviewService;
 
@@ -62,10 +64,14 @@ describe('ReviewService', () => {
     productService = {
       productExists: jest.fn().mockResolvedValue(true),
       applyRatingAggregate: jest.fn().mockResolvedValue(undefined),
+      productSummariesByIds: jest.fn().mockResolvedValue(new Map()),
     } as unknown as jest.Mocked<ProductService>;
     orderService = {
       findPurchasedOrderId: jest.fn().mockResolvedValue(null),
     } as unknown as jest.Mocked<OrderService>;
+    usersService = {
+      displayNamesByIds: jest.fn().mockResolvedValue(new Map()),
+    } as unknown as jest.Mocked<UsersService>;
     auditService = {
       record: jest.fn().mockResolvedValue(undefined),
     } as unknown as jest.Mocked<AuditService>;
@@ -74,6 +80,7 @@ describe('ReviewService', () => {
       reviewRepository,
       productService,
       orderService,
+      usersService,
       auditService,
     );
   });

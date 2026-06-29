@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { CustomerReportQueryDto } from '../dto/customer-report-query.dto';
 import { InventoryReportQueryDto } from '../dto/inventory-report-query.dto';
@@ -37,5 +38,11 @@ export class ReportingController {
   @ApiOperation({ summary: 'Low / out-of-stock inventory health' })
   inventory(@Query() query: InventoryReportQueryDto) {
     return this.reportingService.getInventoryReport(query.limit);
+  }
+
+  @Get('stock-levels')
+  @ApiOperation({ summary: 'All stock levels (paginated, name-enriched)' })
+  stockLevels(@Query() query: PaginationQueryDto) {
+    return this.reportingService.getStockLevels(query);
   }
 }

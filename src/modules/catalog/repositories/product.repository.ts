@@ -16,6 +16,10 @@ export interface ProductSearchParams {
   sort?: 'newest' | 'price_asc' | 'price_desc' | 'name';
 }
 
+export interface AdminProductSearchParams extends ProductSearchParams {
+  status?: ProductStatus;
+}
+
 const FULL_RELATIONS = {
   category: true,
   brand: true,
@@ -48,6 +52,20 @@ export class ProductRepository extends BaseRepository<Product> {
       where: { slug, status: ProductStatus.ACTIVE },
       relations: FULL_RELATIONS,
     });
+  }
+
+  /**
+   * Lightweight lookup by ids (any status, incl. soft-deleted) with the primary
+   * image, for cross-module name/image resolution (orders, reporting).
+   */
+  summariesByIds(ids: string[]): Promise<Product[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.repository
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.media', 'media', 'media.is_primary = true')
+      .withDeleted()
+      .where('p.id IN (:...ids)', { ids })
+      .getMany();
   }
 
   countByCategory(categoryId: string): Promise<number> {
@@ -103,6 +121,7 @@ export class ProductRepository extends BaseRepository<Product> {
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.category', 'category')
       .leftJoinAndSelect('p.brand', 'brand')
+      .leftJoinAndSelect('p.media', 'media', 'media.is_primary = true')
       .where('p.status = :status', { status: ProductStatus.ACTIVE })
       .andWhere('p.deletedAt IS NULL')
       .skip((params.page - 1) * params.limit)
@@ -128,16 +147,68 @@ export class ProductRepository extends BaseRepository<Product> {
 
     switch (params.sort) {
       case 'price_asc':
-        qb.orderBy('p.base_price', 'ASC', 'NULLS LAST');
+        qb.orderBy('p.basePrice', 'ASC', 'NULLS LAST');
         break;
       case 'price_desc':
-        qb.orderBy('p.base_price', 'DESC', 'NULLS LAST');
+        qb.orderBy('p.basePrice', 'DESC', 'NULLS LAST');
         break;
       case 'name':
         qb.orderBy('p.name', 'ASC');
         break;
       default:
-        qb.orderBy('p.created_at', 'DESC');
+        qb.orderBy('p.createdAt', 'DESC');
+    }
+
+    return qb.getManyAndCount();
+  }
+
+  /**
+   * Admin, filtered, paginated list across all statuses (incl. soft-deleted
+   * archived products), with an optional status filter.
+   */
+  adminSearch(params: AdminProductSearchParams): Promise<[Product[], number]> {
+    const qb = this.repository
+      .createQueryBuilder('p')
+      .leftJoinAndSelect('p.category', 'category')
+      .leftJoinAndSelect('p.brand', 'brand')
+      .leftJoinAndSelect('p.media', 'media', 'media.is_primary = true')
+      .withDeleted()
+      .skip((params.page - 1) * params.limit)
+      .take(params.limit);
+
+    if (params.status) {
+      qb.andWhere('p.status = :status', { status: params.status });
+    }
+    if (params.categoryId) {
+      qb.andWhere('p.category_id = :categoryId', {
+        categoryId: params.categoryId,
+      });
+    }
+    if (params.brandId) {
+      qb.andWhere('p.brand_id = :brandId', { brandId: params.brandId });
+    }
+    if (params.minPrice != null) {
+      qb.andWhere('p.base_price >= :minPrice', { minPrice: params.minPrice });
+    }
+    if (params.maxPrice != null) {
+      qb.andWhere('p.base_price <= :maxPrice', { maxPrice: params.maxPrice });
+    }
+    if (params.q) {
+      qb.andWhere('p.name ILIKE :q', { q: `%${params.q}%` });
+    }
+
+    switch (params.sort) {
+      case 'price_asc':
+        qb.orderBy('p.basePrice', 'ASC', 'NULLS LAST');
+        break;
+      case 'price_desc':
+        qb.orderBy('p.basePrice', 'DESC', 'NULLS LAST');
+        break;
+      case 'name':
+        qb.orderBy('p.name', 'ASC');
+        break;
+      default:
+        qb.orderBy('p.createdAt', 'DESC');
     }
 
     return qb.getManyAndCount();

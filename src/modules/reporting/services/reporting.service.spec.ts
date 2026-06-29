@@ -1,4 +1,5 @@
 import { DataSource } from 'typeorm';
+import { ProductService, VariantService } from '../../catalog';
 import { InventoryService } from '../../inventory';
 import { OrderFact } from '../entities/order-fact.entity';
 import { ProductSales } from '../entities/product-sales.entity';
@@ -27,6 +28,8 @@ describe('ReportingService', () => {
   let productSalesRepository: jest.Mocked<ProductSalesRepository>;
   let customerFactRepository: jest.Mocked<CustomerFactRepository>;
   let inventoryService: jest.Mocked<InventoryService>;
+  let productService: jest.Mocked<ProductService>;
+  let variantService: jest.Mocked<VariantService>;
   let dataSource: jest.Mocked<DataSource>;
   let service: ReportingService;
 
@@ -45,12 +48,20 @@ describe('ReportingService', () => {
     inventoryService = {
       getStockReport: jest.fn(),
     } as unknown as jest.Mocked<InventoryService>;
+    productService = {
+      productSummariesByIds: jest.fn().mockResolvedValue(new Map()),
+    } as unknown as jest.Mocked<ProductService>;
+    variantService = {
+      labelsByIds: jest.fn().mockResolvedValue(new Map()),
+    } as unknown as jest.Mocked<VariantService>;
     dataSource = {} as unknown as jest.Mocked<DataSource>;
     service = new ReportingService(
       orderFactRepository,
       productSalesRepository,
       customerFactRepository,
       inventoryService,
+      productService,
+      variantService,
       dataSource,
     );
   });

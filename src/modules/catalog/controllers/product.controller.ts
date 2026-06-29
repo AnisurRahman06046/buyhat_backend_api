@@ -18,6 +18,7 @@ import { Roles } from '../../../common/decorators/roles.decorator';
 import { CATALOG_WRITE_ROLES } from '../catalog.constants';
 import { CreateProductDto } from '../dto/create-product.dto';
 import { GenerateVariantsDto } from '../dto/generate-variants.dto';
+import { AdminProductListQueryDto } from '../dto/admin-product-list-query.dto';
 import { ProductListQueryDto } from '../dto/product-list-query.dto';
 import { ProductSearchQueryDto } from '../dto/product-search-query.dto';
 import { SetAttributeValuesDto } from '../dto/set-attribute-values.dto';
@@ -48,6 +49,15 @@ export class ProductController {
   })
   search(@Query() query: ProductSearchQueryDto) {
     return this.productService.search(query);
+  }
+
+  // Declared before `:slug` so the static segment isn't captured as a slug.
+  @Roles(...CATALOG_WRITE_ROLES)
+  @ApiBearerAuth()
+  @Get('admin')
+  @ApiOperation({ summary: 'Admin product list (all statuses, filterable)' })
+  adminList(@Query() query: AdminProductListQueryDto) {
+    return this.productService.adminList(query);
   }
 
   @Public()

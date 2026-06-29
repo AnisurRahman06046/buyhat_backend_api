@@ -13,7 +13,7 @@ import { PaginationMeta } from '../../../common/interfaces/api-response.interfac
 import { buildPaginationMeta } from '../../../common/utils/pagination.util';
 import { AuditAction, AuditService } from '../../audit';
 import { CartService } from '../../cart';
-import { VariantService } from '../../catalog';
+import { ProductService, VariantService } from '../../catalog';
 import { InventoryService } from '../../inventory';
 import { NotificationEvent, NotificationService } from '../../notifications';
 import { PromotionsService } from '../../promotions';
@@ -60,6 +60,7 @@ export class OrderService {
     private readonly orderRepository: OrderRepository,
     private readonly cartService: CartService,
     private readonly variantService: VariantService,
+    private readonly productService: ProductService,
     private readonly inventoryService: InventoryService,
     private readonly usersService: UsersService,
     private readonly promotionsService: PromotionsService,
@@ -284,10 +285,36 @@ export class OrderService {
       query.limit,
       filter,
     );
+    const nameByOrder = await this.resolveCustomerNames(rows);
+    const data = rows.map((order) => {
+      const dto = OrderResponseDto.fromEntity(order);
+      dto.customerName = nameByOrder.get(order.id) ?? null;
+      return dto;
+    });
     return {
-      data: rows.map((order) => OrderResponseDto.fromEntity(order)),
+      data,
       pagination: buildPaginationMeta(total, query.page, query.limit),
     };
+  }
+
+  /** Order id → best customer label (profile name → guest email → null). */
+  private async resolveCustomerNames(
+    orders: Order[],
+  ): Promise<Map<string, string | null>> {
+    const userIds = [
+      ...new Set(
+        orders.map((o) => o.userId).filter((id): id is string => !!id),
+      ),
+    ];
+    const names = await this.usersService.displayNamesByIds(userIds);
+    const result = new Map<string, string | null>();
+    for (const order of orders) {
+      const fromProfile = order.userId
+        ? (names.get(order.userId) ?? null)
+        : null;
+      result.set(order.id, fromProfile ?? order.guestEmail ?? null);
+    }
+    return result;
   }
 
   async getById(
@@ -299,7 +326,18 @@ export class OrderService {
       // 404 (not 403) so we never reveal another user's order ids.
       throw new NotFoundException(`Order ${orderId} not found`);
     }
-    return OrderResponseDto.fromEntity(order);
+    const dto = OrderResponseDto.fromEntity(order);
+    dto.customerName =
+      (await this.resolveCustomerNames([order])).get(order.id) ?? null;
+    // Enrich line items with the product's current primary image (snapshots
+    // don't store it).
+    const productIds = [...new Set(dto.items.map((it) => it.productId))];
+    const summaries =
+      await this.productService.productSummariesByIds(productIds);
+    for (const item of dto.items) {
+      item.imageUrl = summaries.get(item.productId)?.imageUrl ?? null;
+    }
+    return dto;
   }
 
   // --- lifecycle -------------------------------------------------------------

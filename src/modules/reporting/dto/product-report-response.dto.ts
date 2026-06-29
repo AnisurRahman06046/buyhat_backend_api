@@ -4,6 +4,7 @@ import { ProductSales } from '../entities/product-sales.entity';
 /** One product's cumulative sales metrics. */
 export class ProductSalesDto {
   @ApiProperty() productId: string;
+  @ApiProperty({ nullable: true }) productName: string | null = null;
   @ApiProperty() qtySold: number;
   @ApiProperty() orderCount: number;
   @ApiProperty() revenue: number;

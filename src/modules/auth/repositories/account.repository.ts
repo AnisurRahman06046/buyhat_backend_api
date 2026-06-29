@@ -48,7 +48,7 @@ export class AccountRepository extends BaseRepository<Account> {
     const qb = this.repository
       .createQueryBuilder('account')
       .leftJoinAndSelect('account.roles', 'accountRole')
-      .orderBy('account.created_at', 'DESC')
+      .orderBy('account.createdAt', 'DESC')
       .skip(skip)
       .take(take);
 

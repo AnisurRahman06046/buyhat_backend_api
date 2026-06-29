@@ -235,6 +235,20 @@ export class UsersService {
     };
   }
 
+  /** user id → display name (profile displayName or first+last); blanks omitted. */
+  async displayNamesByIds(userIds: string[]): Promise<Map<string, string>> {
+    if (userIds.length === 0) return new Map();
+    const profiles = await this.profileRepository.findByUserIds(userIds);
+    const map = new Map<string, string>();
+    for (const p of profiles) {
+      const name =
+        p.displayName ??
+        [p.firstName, p.lastName].filter(Boolean).join(' ').trim();
+      if (name) map.set(p.userId, name);
+    }
+    return map;
+  }
+
   async adminGetById(userId: string): Promise<ProfileResponseDto> {
     const identity = await this.requireIdentity(userId);
     const profile = await this.profileRepository.findByUserId(userId);

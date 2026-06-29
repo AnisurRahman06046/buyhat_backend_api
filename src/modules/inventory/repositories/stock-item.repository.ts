@@ -67,4 +67,14 @@ export class StockItemRepository extends BaseRepository<StockItem> {
       .andWhere(`${StockItemRepository.AVAILABLE} <= s.reorder_level`)
       .getCount();
   }
+
+  /** All stock items, lowest available first, paginated. */
+  listAll(skip: number, limit: number): Promise<[StockItem[], number]> {
+    return this.repository
+      .createQueryBuilder('s')
+      .orderBy(StockItemRepository.AVAILABLE, 'ASC')
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+  }
 }

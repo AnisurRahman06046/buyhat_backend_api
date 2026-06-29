@@ -33,6 +33,20 @@ export class ProductVariantRepository extends BaseRepository<ProductVariant> {
     return this.findOne({ where: { id }, relations: { product: true } });
   }
 
+  /** variant id → sku + product name, for cross-module label resolution. */
+  summariesByIds(
+    ids: string[],
+  ): Promise<{ id: string; sku: string | null; productName: string }[]> {
+    if (ids.length === 0) return Promise.resolve([]);
+    return this.repository
+      .createQueryBuilder('v')
+      .innerJoin('v.product', 'p')
+      .withDeleted()
+      .where('v.id IN (:...ids)', { ids })
+      .select(['v.id AS id', 'v.sku AS sku', 'p.name AS "productName"'])
+      .getRawMany();
+  }
+
   /** Existing combination signatures for a product (to skip duplicates on generation). */
   async existingSignatures(productId: string): Promise<Set<string>> {
     const rows = await this.repository.find({

@@ -24,6 +24,7 @@ import {
 } from '../search/search.types';
 import { ProductListItemDto } from '../dto/product-response.dto';
 import { ProductListQueryDto } from '../dto/product-list-query.dto';
+import { AdminProductListQueryDto } from '../dto/admin-product-list-query.dto';
 import { SetAttributeValuesDto } from '../dto/set-attribute-values.dto';
 import { UpdateProductDto } from '../dto/update-product.dto';
 import { Product } from '../entities/product.entity';
@@ -176,6 +177,36 @@ export class ProductService {
       data: items.map((p) => ProductListItemDto.fromEntity(p)),
       pagination: buildPaginationMeta(total, query.page, query.limit),
     };
+  }
+
+  /** Admin list: all statuses, optional status filter. */
+  async adminList(query: AdminProductListQueryDto): Promise<{
+    data: ProductListItemDto[];
+    pagination: PaginationMeta;
+  }> {
+    const [items, total] = await this.productRepository.adminSearch(query);
+    return {
+      data: items.map((p) => ProductListItemDto.fromEntity(p)),
+      pagination: buildPaginationMeta(total, query.page, query.limit),
+    };
+  }
+
+  /**
+   * Resolve product id → display name + primary image, for other modules
+   * (orders line images, reporting best-seller names) without a schema join.
+   */
+  async productSummariesByIds(
+    ids: string[],
+  ): Promise<Map<string, { name: string; imageUrl: string | null }>> {
+    const products = await this.productRepository.summariesByIds(ids);
+    return new Map(
+      products.map((p) => {
+        const media = p.media ?? [];
+        const imageUrl =
+          (media.find((m) => m.isPrimary) ?? media[0])?.url ?? null;
+        return [p.id, { name: p.name, imageUrl }];
+      }),
+    );
   }
 
   async update(

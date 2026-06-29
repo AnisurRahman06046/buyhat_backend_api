@@ -5,8 +5,12 @@ import { ReviewStatus } from '../enums/review-status.enum';
 export class ReviewResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() productId: string;
+  /** Resolved (catalog) for the moderation queue; null on public lists. */
+  @ApiPropertyOptional({ nullable: true }) productName: string | null = null;
   @ApiPropertyOptional({ nullable: true }) variantId: string | null;
   @ApiProperty() userId: string;
+  /** Resolved (users) for the moderation queue; null on public lists. */
+  @ApiPropertyOptional({ nullable: true }) authorName: string | null = null;
   @ApiPropertyOptional({ nullable: true }) orderId: string | null;
   @ApiProperty() rating: number;
   @ApiPropertyOptional({ nullable: true }) title: string | null;

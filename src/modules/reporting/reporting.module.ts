@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CatalogModule } from '../catalog';
 import { InventoryModule } from '../inventory';
 import { ReportingController } from './controllers/reporting.controller';
 import { CustomerFact } from './entities/customer-fact.entity';
@@ -21,6 +22,9 @@ import { ReportingService } from './services/reporting.service';
   imports: [
     TypeOrmModule.forFeature([OrderFact, ProductSales, CustomerFact]),
     InventoryModule,
+    // Read-only, for display enrichment (best-seller names). Forward dependency —
+    // catalog does not import reporting, so no cycle.
+    CatalogModule,
   ],
   controllers: [ReportingController],
   providers: [

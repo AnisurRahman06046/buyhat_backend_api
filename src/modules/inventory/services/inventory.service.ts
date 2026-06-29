@@ -628,6 +628,25 @@ export class InventoryService {
     };
   }
 
+  /**
+   * Paginated list of every stock item (lowest available first). Lines carry no
+   * product name/SKU — the caller (reporting) enriches those from catalog, so
+   * inventory stays decoupled.
+   */
+  async listStockLevels(
+    page: number,
+    limit: number,
+  ): Promise<{ data: StockReportLineDto[]; pagination: PaginationMeta }> {
+    const [items, total] = await this.stockItemRepository.listAll(
+      (page - 1) * limit,
+      limit,
+    );
+    return {
+      data: items.map((i) => StockReportLineDto.fromEntity(i)),
+      pagination: buildPaginationMeta(total, page, limit),
+    };
+  }
+
   // --- helpers ---
 
   /** Pessimistically lock the variant's stock_item, creating it if absent. */

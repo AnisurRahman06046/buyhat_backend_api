@@ -17,6 +17,8 @@ export class OrderItemResponseDto {
   @ApiProperty() unitPrice: number;
   @ApiProperty() quantity: number;
   @ApiProperty() lineTotal: number;
+  /** Current primary image of the product (resolved at read time, not snapshotted). */
+  @ApiPropertyOptional({ nullable: true }) imageUrl: string | null = null;
 
   static fromEntity(item: OrderItem): OrderItemResponseDto {
     const dto = new OrderItemResponseDto();
@@ -80,6 +82,8 @@ export class OrderResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() orderNumber: string;
   @ApiPropertyOptional({ nullable: true }) userId: string | null;
+  /** Customer display name (profile name → guest email), resolved at read time. */
+  @ApiPropertyOptional({ nullable: true }) customerName: string | null = null;
   @ApiProperty({ enum: OrderStatus }) status: OrderStatus;
   @ApiProperty({ enum: PaymentStatus }) paymentStatus: PaymentStatus;
   @ApiProperty() currency: string;

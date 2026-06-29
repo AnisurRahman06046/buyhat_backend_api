@@ -1,6 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { InventoryService, StockReportDto } from '../../inventory';
+import { PaginationMeta } from '../../../common/interfaces/api-response.interface';
+import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
+import { ProductService, VariantService } from '../../catalog';
+import {
+  InventoryService,
+  StockReportDto,
+  StockReportLineDto,
+} from '../../inventory';
 import { CustomerReportDto } from '../dto/customer-report-response.dto';
 import { CustomerReportQueryDto } from '../dto/customer-report-query.dto';
 import { ProductReportQueryDto } from '../dto/product-report-query.dto';
@@ -58,6 +65,8 @@ export class ReportingService {
     private readonly productSalesRepository: ProductSalesRepository,
     private readonly customerFactRepository: CustomerFactRepository,
     private readonly inventoryService: InventoryService,
+    private readonly productService: ProductService,
+    private readonly variantService: VariantService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -215,7 +224,14 @@ export class ReportingService {
       direction,
       query.limit,
     );
-    return rows.map((r) => ProductSalesDto.fromEntity(r));
+    const names = await this.productService.productSummariesByIds(
+      rows.map((r) => r.productId),
+    );
+    return rows.map((r) => {
+      const dto = ProductSalesDto.fromEntity(r);
+      dto.productName = names.get(r.productId)?.name ?? null;
+      return dto;
+    });
   }
 
   async getCustomerReport(
@@ -234,8 +250,37 @@ export class ReportingService {
     };
   }
 
-  getInventoryReport(limit: number): Promise<StockReportDto> {
-    return this.inventoryService.getStockReport(limit);
+  async getInventoryReport(limit: number): Promise<StockReportDto> {
+    const report = await this.inventoryService.getStockReport(limit);
+    const lines = [...report.outOfStock, ...report.lowStock];
+    const labels = await this.variantService.labelsByIds([
+      ...new Set(lines.map((l) => l.variantId)),
+    ]);
+    for (const line of lines) {
+      const label = labels.get(line.variantId);
+      line.productName = label?.productName ?? null;
+      line.sku = label?.sku ?? null;
+    }
+    return report;
+  }
+
+  /** Paginated list of all stock levels, enriched with product name + SKU. */
+  async getStockLevels(
+    query: PaginationQueryDto,
+  ): Promise<{ data: StockReportLineDto[]; pagination: PaginationMeta }> {
+    const { data, pagination } = await this.inventoryService.listStockLevels(
+      query.page,
+      query.limit,
+    );
+    const labels = await this.variantService.labelsByIds([
+      ...new Set(data.map((l) => l.variantId)),
+    ]);
+    for (const line of data) {
+      const label = labels.get(line.variantId);
+      line.productName = label?.productName ?? null;
+      line.sku = label?.sku ?? null;
+    }
+    return { data, pagination };
   }
 
   /** Product ids ordered by units sold, for CMS auto best-sellers (D67). */

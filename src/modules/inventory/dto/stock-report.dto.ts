@@ -8,6 +8,9 @@ export class StockReportLineDto {
   @ApiProperty() reserved: number;
   @ApiProperty() available: number;
   @ApiProperty() reorderLevel: number;
+  /** Resolved by the reporting layer (catalog), so inventory stays decoupled. */
+  @ApiProperty({ nullable: true }) productName: string | null = null;
+  @ApiProperty({ nullable: true }) sku: string | null = null;
 
   static fromEntity(item: StockItem): StockReportLineDto {
     const dto = new StockReportLineDto();

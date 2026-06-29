@@ -214,6 +214,16 @@ export class VariantService {
     };
   }
 
+  /** variant id → { sku, productName }, for cross-module label resolution. */
+  async labelsByIds(
+    ids: string[],
+  ): Promise<Map<string, { sku: string | null; productName: string }>> {
+    const rows = await this.variantRepository.summariesByIds(ids);
+    return new Map(
+      rows.map((r) => [r.id, { sku: r.sku, productName: r.productName }]),
+    );
+  }
+
   async listForProduct(productId: string): Promise<VariantResponseDto[]> {
     if (!(await this.productRepository.exists({ id: productId }))) {
       throw new NotFoundException(`Product ${productId} not found`);
