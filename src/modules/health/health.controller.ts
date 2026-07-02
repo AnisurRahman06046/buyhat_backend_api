@@ -7,15 +7,16 @@ import {
 import { SkipThrottle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
-import { RedisHealthIndicator } from './indicators/redis.health';
 
 /**
  * Operational endpoints for orchestrators (Kubernetes, ECS, load balancers).
  * All public — probes must not require auth.
  *
- *   GET /health        full readiness (DB + Redis)
+ *   GET /health        full readiness (DB)
  *   GET /health/live   liveness (process is up; no dependency checks)
  *   GET /health/ready  readiness (dependencies reachable)
+ *
+ * MVP: Redis is not part of the stack, so probes check the database only.
  */
 @ApiTags('health')
 @SkipThrottle()
@@ -24,17 +25,15 @@ export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
     private readonly db: TypeOrmHealthIndicator,
-    private readonly redis: RedisHealthIndicator,
   ) {}
 
   @Public()
   @Get()
   @HealthCheck()
-  @ApiOperation({ summary: 'Full health check (database + redis)' })
+  @ApiOperation({ summary: 'Full health check (database)' })
   check() {
     return this.health.check([
       () => this.db.pingCheck('database', { timeout: 1_500 }),
-      () => this.redis.isHealthy('redis'),
     ]);
   }
 
@@ -52,7 +51,6 @@ export class HealthController {
   ready() {
     return this.health.check([
       () => this.db.pingCheck('database', { timeout: 1_500 }),
-      () => this.redis.isHealthy('redis'),
     ]);
   }
 }

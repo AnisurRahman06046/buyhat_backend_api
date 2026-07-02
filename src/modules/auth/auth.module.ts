@@ -1,9 +1,7 @@
-import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { QUEUE_NAMES } from '../../shared/queue/queue.constants';
 import { ReportingModule } from '../reporting';
 import { AuthController } from './controllers/auth.controller';
 import { Account } from './entities/account.entity';
@@ -16,7 +14,6 @@ import { AccountService } from './services/account.service';
 import { Argon2PasswordHasher } from './services/argon2-password-hasher';
 import { AuthService } from './services/auth.service';
 import { OneTimeTokenService } from './services/one-time-token.service';
-import { OutboxRelayService } from './services/outbox-relay.service';
 import { OutboxService } from './services/outbox.service';
 import { PASSWORD_HASHER } from './services/password-hasher';
 import { RefreshTokenStore } from './services/refresh-token.store';
@@ -33,7 +30,6 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     TypeOrmModule.forFeature([Account, AccountRole, OneTimeToken, OutboxEvent]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({}),
-    BullModule.registerQueue({ name: QUEUE_NAMES.DOMAIN_EVENTS }),
     ReportingModule,
   ],
   controllers: [AuthController],
@@ -44,7 +40,6 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     RefreshTokenStore,
     OneTimeTokenService,
     OutboxService,
-    OutboxRelayService,
     AccountRepository,
     OneTimeTokenRepository,
     JwtStrategy,

@@ -1,48 +1,40 @@
-import { BullModule } from '@nestjs/bullmq';
-import { Global, Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { RedisConfig } from '../../config/configuration';
-import { ExampleProcessor } from './example.processor';
+import { getQueueToken } from '@nestjs/bullmq';
+import { Global, Module, Provider } from '@nestjs/common';
 import { QUEUE_NAMES } from './queue.constants';
 
 /**
- * Background-job infrastructure built on BullMQ (backed by the same Redis).
+ * MVP: Redis-free background-job infrastructure.
  *
- * - `BullModule.forRootAsync` sets the shared connection + sensible default job
- *   options (retries with exponential backoff, automatic cleanup).
- * - `BullModule.registerQueue` registers each queue; the matching @Processor
- *   class consumes it. The "example" queue + ExampleProcessor below are the
- *   reference pattern — replace/extend them with real queues per feature.
+ * The real BullMQ-backed queues are disabled for the initial launch (no Redis
+ * dependency). This module provides no-op stand-ins under the *same* DI tokens
+ * that `@InjectQueue(name)` resolves (`getQueueToken(name)`), so producers keep
+ * compiling and calling `.add()` — which becomes a harmless no-op. The matching
+ * @Processor consumers are simply not registered, so nothing is dequeued.
  *
- * @Global so any module can inject `@InjectQueue(QUEUE_NAMES.X)` to enqueue jobs.
+ * To re-enable real background jobs, restore the BullMQ `forRootAsync` version
+ * from git history and re-register each feature module's queue + processor.
  */
+const noopQueue = {
+  add: (): Promise<undefined> => Promise.resolve(undefined),
+  addBulk: (): Promise<[]> => Promise.resolve([]),
+};
+
+/** Queues referenced via `@InjectQueue(...)` somewhere in the codebase. */
+const QUEUES_IN_USE = [
+  QUEUE_NAMES.INVENTORY,
+  QUEUE_NAMES.DOMAIN_EVENTS,
+  QUEUE_NAMES.CATALOG_EVENTS,
+  QUEUE_NAMES.NOTIFICATIONS,
+];
+
+const queueProviders: Provider[] = QUEUES_IN_USE.map((name) => ({
+  provide: getQueueToken(name),
+  useValue: noopQueue,
+}));
+
 @Global()
 @Module({
-  imports: [
-    BullModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const redis = configService.get<RedisConfig>('redis')!;
-        return {
-          connection: {
-            host: redis.host,
-            port: redis.port,
-            password: redis.password,
-          },
-          defaultJobOptions: {
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 2_000 },
-            removeOnComplete: { age: 3_600, count: 1_000 },
-            removeOnFail: { age: 24 * 3_600 },
-          },
-        };
-      },
-    }),
-    BullModule.registerQueue({ name: QUEUE_NAMES.EXAMPLE }),
-  ],
-  providers: [ExampleProcessor],
-  // Re-export BullModule so feature modules can `@InjectQueue` the registered queues.
-  exports: [BullModule],
+  providers: queueProviders,
+  exports: queueProviders,
 })
 export class QueueModule {}

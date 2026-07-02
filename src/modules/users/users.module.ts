@@ -1,9 +1,7 @@
-import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { QUEUE_NAMES } from '../../shared/queue/queue.constants';
 import { AuthModule } from '../auth';
-import { DomainEventsConsumer } from './consumers/domain-events.consumer';
+import { UserRegisteredListener } from './listeners/user-registered.listener';
 import { UsersController } from './controllers/users.controller';
 import { Address } from './entities/address.entity';
 import { Profile } from './entities/profile.entity';
@@ -18,17 +16,15 @@ import { UsersService } from './services/users.service';
  * the `user.registered` event.
  */
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Profile, Address]),
-    BullModule.registerQueue({ name: QUEUE_NAMES.DOMAIN_EVENTS }),
-    AuthModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Profile, Address]), AuthModule],
   controllers: [UsersController],
   providers: [
     UsersService,
     ProfileRepository,
     AddressRepository,
-    DomainEventsConsumer,
+    // MVP: profiles are created from the in-process `user.registered` event
+    // (see UserRegisteredListener) instead of the BullMQ domain-events consumer.
+    UserRegisteredListener,
   ],
   exports: [UsersService],
 })

@@ -24,7 +24,7 @@ import { PASSWORD_HASHER, PasswordHasher } from './password-hasher';
 import { AccountService } from './account.service';
 import { OneTimeTokenService } from './one-time-token.service';
 import { OutboxService } from './outbox.service';
-import { OutboxRelayService } from './outbox-relay.service';
+import { DomainEventBus } from '../../../shared/events';
 import { RefreshTokenStore } from './refresh-token.store';
 import { TokenService } from './token.service';
 
@@ -48,7 +48,7 @@ export class AuthService {
     private readonly refreshTokenStore: RefreshTokenStore,
     private readonly oneTimeTokenService: OneTimeTokenService,
     private readonly outboxService: OutboxService,
-    private readonly outboxRelay: OutboxRelayService,
+    private readonly domainEventBus: DomainEventBus,
     @Inject(PASSWORD_HASHER) private readonly passwordHasher: PasswordHasher,
     private readonly notifications: NotificationService,
     private readonly reporting: ReportingService,
@@ -95,8 +95,13 @@ export class AuthService {
       },
     );
 
-    // Best-effort post-commit side effects (the poller recovers if these fail).
-    void this.outboxRelay.flush();
+    // MVP: publish the profile-creation event in-process (no Redis/outbox
+    // relay). The users listener creates the profile synchronously in-process.
+    this.domainEventBus.emitUserRegistered({
+      userId: accountId,
+      firstName: dto.firstName ?? null,
+      lastName: dto.lastName ?? null,
+    });
     await this.notifications.dispatch({
       event: NotificationEvent.AUTH_VERIFY_EMAIL,
       userId: accountId,

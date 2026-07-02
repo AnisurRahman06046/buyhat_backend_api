@@ -1,9 +1,7 @@
-import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { QUEUE_NAMES } from '../../shared/queue/queue.constants';
 import { AttributeController } from './controllers/attribute.controller';
 import { BrandController } from './controllers/brand.controller';
 import { CategoryController } from './controllers/category.controller';
@@ -34,7 +32,9 @@ import { AttributeService } from './services/attribute.service';
 import { BrandService } from './services/brand.service';
 import { CategoryService } from './services/category.service';
 import { MediaService } from './services/media.service';
-import { CatalogOutboxRelayService } from './services/outbox-relay.service';
+// MVP: catalog→inventory outbox relay disabled (Redis-free). Inventory
+// auto-provisions a stock item on the first admin stock movement, so the
+// `variant.created` sync is not needed for the initial launch.
 import { OutboxService } from './services/outbox.service';
 import { ProductService } from './services/product.service';
 import { VariantService } from './services/variant.service';
@@ -75,7 +75,6 @@ const searchProvider = {
       ProductMedia,
       OutboxEvent,
     ]),
-    BullModule.registerQueue({ name: QUEUE_NAMES.CATALOG_EVENTS }),
   ],
   controllers: [
     CategoryController,
@@ -102,7 +101,6 @@ const searchProvider = {
     VariantService,
     MediaService,
     OutboxService,
-    CatalogOutboxRelayService,
     searchProvider,
   ],
   exports: [ProductService, VariantService, CategoryService, BrandService],

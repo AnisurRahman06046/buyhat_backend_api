@@ -4,17 +4,17 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import { LoggerModule } from 'nestjs-pino';
-import type Redis from 'ioredis';
 import configuration from './config/configuration';
 import { validate } from './config/env.validation';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { DatabaseModule } from './database/database.module';
-import { RedisModule } from './shared/redis/redis.module';
-import { REDIS_CLIENT } from './shared/redis/redis.service';
+// MVP: Redis removed for the initial launch. RedisModule is no longer wired;
+// QueueModule + CacheModule are no-op stand-ins and auth's RefreshTokenStore is
+// in-memory. The in-process EventsModule replaces the outbox→BullMQ relay.
 import { QueueModule } from './shared/queue/queue.module';
+import { EventsModule } from './shared/events';
 import { NotificationProviderModule } from './shared/notifications';
 import { StorageModule } from './shared/storage';
 import { CacheModule } from './shared/cache';
@@ -23,9 +23,10 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { CatalogModule } from './modules/catalog';
 import { InventoryModule } from './modules/inventory';
-import { CartModule } from './modules/cart';
-import { OrdersModule } from './modules/orders';
-import { PaymentsModule } from './modules/payments';
+// MVP: commerce (cart / orders / payments) disabled for the initial launch.
+// import { CartModule } from './modules/cart';
+// import { OrdersModule } from './modules/orders';
+// import { PaymentsModule } from './modules/payments';
 import { PromotionsModule } from './modules/promotions';
 import { CmsModule } from './modules/cms';
 import { ReviewsModule } from './modules/reviews';
@@ -84,8 +85,8 @@ import { HealthModule } from './modules/health/health.module';
     }),
 
     ThrottlerModule.forRootAsync({
-      inject: [ConfigService, REDIS_CLIENT],
-      useFactory: (config: ConfigService, redis: Redis) => ({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
         throttlers: [
           {
             // config stores TTL in seconds; throttler v6 expects milliseconds.
@@ -93,15 +94,15 @@ import { HealthModule } from './modules/health/health.module';
             limit: config.get<number>('throttle.limit', 100),
           },
         ],
-        // Back the throttler with Redis so limits are shared across replicas
-        // (in-memory storage is per-instance and ineffective behind >1 pod).
-        storage: new ThrottlerStorageRedisService(redis),
+        // MVP: default in-memory storage (no Redis). Per-instance limits are
+        // fine for a single-node launch; re-add ThrottlerStorageRedisService
+        // when running multiple replicas.
       }),
     }),
 
     DatabaseModule,
-    RedisModule,
     QueueModule,
+    EventsModule,
     NotificationProviderModule,
     StorageModule,
     CacheModule,
@@ -112,9 +113,7 @@ import { HealthModule } from './modules/health/health.module';
     UsersModule,
     CatalogModule,
     InventoryModule,
-    CartModule,
-    OrdersModule,
-    PaymentsModule,
+    // MVP: commerce disabled — CartModule, OrdersModule, PaymentsModule.
     PromotionsModule,
     CmsModule,
     ReviewsModule,

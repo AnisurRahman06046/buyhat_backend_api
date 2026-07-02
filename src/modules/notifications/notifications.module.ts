@@ -1,12 +1,9 @@
-import { BullModule } from '@nestjs/bullmq';
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationController } from './controllers/notification.controller';
 import { Notification } from './entities/notification.entity';
 import { NotificationPreference } from './entities/notification-preference.entity';
 import { NotificationTemplate } from './entities/notification-template.entity';
-import { NOTIFICATIONS_QUEUE } from './notifications.constants';
-import { NotificationProcessor } from './processors/notification.processor';
 import { NotificationPreferenceRepository } from './repositories/notification-preference.repository';
 import { NotificationRepository } from './repositories/notification.repository';
 import { NotificationTemplateRepository } from './repositories/notification-template.repository';
@@ -33,7 +30,6 @@ import { TemplateService } from './services/template.service';
       NotificationTemplate,
       NotificationPreference,
     ]),
-    BullModule.registerQueue({ name: NOTIFICATIONS_QUEUE }),
   ],
   controllers: [NotificationController],
   providers: [
@@ -42,8 +38,9 @@ import { TemplateService } from './services/template.service';
     NotificationPreferenceRepository,
     NotificationService,
     TemplateService,
+    // MVP: NotificationProcessor (BullMQ worker) disabled. NotificationService
+    // still records notifications; delivery enqueue is a no-op without Redis.
     PreferenceService,
-    NotificationProcessor,
   ],
   exports: [NotificationService],
 })

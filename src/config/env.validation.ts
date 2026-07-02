@@ -73,16 +73,17 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   DB_NAME: string;
 
-  // ---- Redis ----
+  // ---- Redis (MVP: unused — optional so the app boots without Redis) ----
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  REDIS_HOST: string;
+  REDIS_HOST?: string;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(65535)
-  REDIS_PORT: number;
+  REDIS_PORT?: number;
 
   @IsString()
   @IsOptional()
