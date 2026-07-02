@@ -17,9 +17,16 @@ export interface DatabaseConfig {
   username: string;
   password: string;
   database: string;
+  /** TLS to Postgres — required by managed providers (e.g. Render external URLs). */
+  ssl: boolean;
 }
 
 export interface RedisConfig {
+  /**
+   * Full connection URL (e.g. Upstash `rediss://default:<token>@<host>:6379`).
+   * Takes precedence over host/port/password when set; `rediss://` enables TLS.
+   */
+  url?: string;
   host: string;
   port: number;
   password?: string;
@@ -38,8 +45,11 @@ export interface ThrottleConfig {
 }
 
 export interface StorageConfig {
-  /** `local` = disk (dev default); `s3` = S3/MinIO-compatible object store. */
-  driver: 'local' | 's3';
+  /**
+   * `local` = disk (dev default); `s3` = S3/MinIO/R2-compatible object store;
+   * `cloudinary` = Cloudinary media platform (auto-optimized CDN delivery).
+   */
+  driver: 'local' | 's3' | 'cloudinary';
   /** Public base URL/path objects are served from (e.g. `/uploads` or a CDN). */
   publicUrl: string;
   /** Max accepted upload size in bytes. */
@@ -52,6 +62,11 @@ export interface StorageConfig {
     accessKeyId: string;
     secretAccessKey: string;
     forcePathStyle: boolean;
+  };
+  cloudinary: {
+    cloudName: string;
+    apiKey: string;
+    apiSecret: string;
   };
 }
 
@@ -112,8 +127,10 @@ export default (): Configuration => ({
     username: process.env.DB_USERNAME ?? 'postgres',
     password: process.env.DB_PASSWORD ?? 'postgres',
     database: process.env.DB_NAME ?? 'app',
+    ssl: process.env.DB_SSL === 'true',
   },
   redis: {
+    url: process.env.REDIS_URL || undefined,
     host: process.env.REDIS_HOST ?? 'localhost',
     port: parseInt(process.env.REDIS_PORT ?? '6379', 10),
     password: process.env.REDIS_PASSWORD || undefined,
@@ -141,6 +158,11 @@ export default (): Configuration => ({
       accessKeyId: process.env.S3_ACCESS_KEY ?? '',
       secretAccessKey: process.env.S3_SECRET_KEY ?? '',
       forcePathStyle: (process.env.S3_FORCE_PATH_STYLE ?? 'false') === 'true',
+    },
+    cloudinary: {
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME ?? '',
+      apiKey: process.env.CLOUDINARY_API_KEY ?? '',
+      apiSecret: process.env.CLOUDINARY_API_SECRET ?? '',
     },
   },
   catalog: {

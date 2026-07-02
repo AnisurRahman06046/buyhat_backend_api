@@ -39,6 +39,11 @@ export class S3StorageProvider implements StorageProvider {
         accessKeyId: this.cfg.accessKeyId,
         secretAccessKey: this.cfg.secretAccessKey,
       },
+      // SDK ≥3.729 sends CRC32 checksum headers by default, which some
+      // S3-compatible stores (e.g. Cloudflare R2) reject. WHEN_REQUIRED
+      // restores the pre-3.729 behaviour and is safe for AWS S3/MinIO too.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
   }
 

@@ -25,11 +25,15 @@ import { QUEUE_NAMES } from './queue.constants';
       useFactory: (configService: ConfigService) => {
         const redis = configService.get<RedisConfig>('redis')!;
         return {
-          connection: {
-            host: redis.host,
-            port: redis.port,
-            password: redis.password,
-          },
+          // BullMQ hands `url` straight to ioredis, which enables TLS for the
+          // rediss:// scheme (e.g. Upstash); otherwise fall back to host/port.
+          connection: redis.url
+            ? { url: redis.url }
+            : {
+                host: redis.host,
+                port: redis.port,
+                password: redis.password,
+              },
           defaultJobOptions: {
             attempts: 3,
             backoff: { type: 'exponential', delay: 2_000 },

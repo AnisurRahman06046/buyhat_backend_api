@@ -21,6 +21,9 @@ export const dataSourceOptions: DataSourceOptions = {
   username: process.env.DB_USERNAME ?? 'postgres',
   password: process.env.DB_PASSWORD ?? 'postgres',
   database: process.env.DB_NAME ?? 'app',
+  // Keep in sync with DatabaseModule: TLS for managed Postgres (e.g. Render).
+  ssl:
+    process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
   // Glob both .ts (ts-node CLI) and .js (compiled runtime) so the same config
   // works for the CLI and the built app.
   entities: ['src/**/*.entity{.ts,.js}', 'dist/**/*.entity{.js}'],

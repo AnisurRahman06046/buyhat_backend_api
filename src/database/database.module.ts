@@ -33,6 +33,9 @@ import { DB_SCHEMAS } from './schemas';
           username: db.username,
           password: db.password,
           database: db.database,
+          // Managed Postgres (e.g. Render external URLs) requires TLS; the
+          // provider terminates with its own CA, so skip chain verification.
+          ssl: db.ssl ? { rejectUnauthorized: false } : undefined,
           autoLoadEntities: true,
           synchronize: false,
           logging: !isProduction,

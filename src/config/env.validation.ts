@@ -1,10 +1,12 @@
 import { plainToInstance, Type } from 'class-transformer';
 import {
+  IsBooleanString,
   IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min,
   MinLength,
@@ -24,6 +26,7 @@ export enum Environment {
 export enum StorageDriver {
   Local = 'local',
   S3 = 's3',
+  Cloudinary = 'cloudinary',
 }
 
 /** Product search backend (D72 / Phase 12). */
@@ -73,16 +76,30 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   DB_NAME: string;
 
+  /** `true` enables TLS to Postgres (managed providers, e.g. Render external). */
+  @IsBooleanString()
+  @IsOptional()
+  DB_SSL?: string;
+
   // ---- Redis ----
+  /** Full connection URL (managed Redis, e.g. Upstash `rediss://...`). Wins over host/port/password. */
+  @Matches(/^rediss?:\/\//, {
+    message: 'REDIS_URL must start with redis:// or rediss://',
+  })
+  @IsOptional()
+  REDIS_URL?: string;
+
   @IsString()
   @IsNotEmpty()
-  REDIS_HOST: string;
+  @IsOptional()
+  REDIS_HOST: string = 'localhost';
 
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(65535)
-  REDIS_PORT: number;
+  @IsOptional()
+  REDIS_PORT: number = 6379;
 
   @IsString()
   @IsOptional()
@@ -173,6 +190,19 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   S3_FORCE_PATH_STYLE = 'false';
+
+  // Cloudinary driver (only used when STORAGE_DRIVER=cloudinary).
+  @IsString()
+  @IsOptional()
+  CLOUDINARY_CLOUD_NAME?: string;
+
+  @IsString()
+  @IsOptional()
+  CLOUDINARY_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  CLOUDINARY_API_SECRET?: string;
 
   // ---- Catalog ----
   @Type(() => Number)

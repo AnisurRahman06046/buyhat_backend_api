@@ -18,15 +18,22 @@ import { REDIS_CLIENT, RedisService } from './redis.service';
       inject: [ConfigService],
       useFactory: (configService: ConfigService): Redis => {
         const redis = configService.get<RedisConfig>('redis')!;
-        return new Redis({
-          host: redis.host,
-          port: redis.port,
-          password: redis.password,
+        const options = {
           // Retry with backoff; never give up so transient outages self-heal.
-          retryStrategy: (times) => Math.min(times * 200, 5_000),
+          retryStrategy: (times: number) => Math.min(times * 200, 5_000),
           maxRetriesPerRequest: null,
           enableReadyCheck: true,
-        });
+        };
+        // A full URL (e.g. Upstash rediss://) wins over host/port/password;
+        // ioredis enables TLS automatically for the rediss:// scheme.
+        return redis.url
+          ? new Redis(redis.url, options)
+          : new Redis({
+              host: redis.host,
+              port: redis.port,
+              password: redis.password,
+              ...options,
+            });
       },
     },
     RedisService,
